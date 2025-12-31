@@ -3,6 +3,7 @@ local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
 local util = require("util")
+local glm = require("glm")
 
 -- Game constants
 local FIELD_WIDTH = 10
@@ -94,89 +95,6 @@ void main() {
 @program breakout vs fs
 ]]
 
--- Matrix math utilities
-local function mat4_identity()
-    return {
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-    }
-end
-
-local function mat4_translate(tx, ty, tz)
-    return {
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        tx, ty, tz, 1
-    }
-end
-
-local function mat4_scale(sx, sy, sz)
-    return {
-        sx, 0, 0, 0,
-        0, sy, 0, 0,
-        0, 0, sz, 0,
-        0, 0, 0, 1
-    }
-end
-
-local function mat4_mul(a, b)
-    -- Column-major: result[col][row] = sum of a[k][row] * b[col][k]
-    local r = {}
-    for col = 0, 3 do
-        for row = 0, 3 do
-            local sum = 0
-            for k = 0, 3 do
-                sum = sum + a[k*4 + row + 1] * b[col*4 + k + 1]
-            end
-            r[#r + 1] = sum
-        end
-    end
-    return r
-end
-
-local function mat4_perspective(fovy, aspect, near, far)
-    local f = 1.0 / math.tan(fovy / 2.0)
-    return {
-        f / aspect, 0, 0, 0,
-        0, f, 0, 0,
-        0, 0, (far + near) / (near - far), -1,
-        0, 0, (2 * far * near) / (near - far), 0
-    }
-end
-
-local function mat4_lookat(eye_x, eye_y, eye_z, center_x, center_y, center_z, up_x, up_y, up_z)
-    local fx = center_x - eye_x
-    local fy = center_y - eye_y
-    local fz = center_z - eye_z
-    local len = math.sqrt(fx*fx + fy*fy + fz*fz)
-    fx, fy, fz = fx/len, fy/len, fz/len
-
-    local sx = fy * up_z - fz * up_y
-    local sy = fz * up_x - fx * up_z
-    local sz = fx * up_y - fy * up_x
-    len = math.sqrt(sx*sx + sy*sy + sz*sz)
-    sx, sy, sz = sx/len, sy/len, sz/len
-
-    local ux = sy * fz - sz * fy
-    local uy = sz * fx - sx * fz
-    local uz = sx * fy - sy * fx
-
-    local tx = -(sx*eye_x + sy*eye_y + sz*eye_z)
-    local ty = -(ux*eye_x + uy*eye_y + uz*eye_z)
-    local tz = (fx*eye_x + fy*eye_y + fz*eye_z)
-
-    -- Column-major order
-    return {
-        sx, ux, -fx, 0,
-        sy, uy, -fy, 0,
-        sz, uz, -fz, 0,
-        tx, ty, tz, 1
-    }
-end
-
 -- Generate cube vertices (pos, normal) - no color, color comes from uniform
 local function make_cube_vertices()
     local v = {}
@@ -233,11 +151,11 @@ end
 local function init_blocks()
     blocks = {}
     local colors = {
-        {1.0, 0.3, 0.3},  -- red
-        {1.0, 0.6, 0.2},  -- orange
-        {1.0, 1.0, 0.3},  -- yellow
-        {0.3, 1.0, 0.3},  -- green
-        {0.3, 0.6, 1.0},  -- blue
+        glm.vec3(1.0, 0.3, 0.3),  -- red
+        glm.vec3(1.0, 0.6, 0.2),  -- orange
+        glm.vec3(1.0, 1.0, 0.3),  -- yellow
+        glm.vec3(0.3, 1.0, 0.3),  -- green
+        glm.vec3(0.3, 0.6, 1.0),  -- blue
     }
     for row = 1, BLOCK_ROWS do
         for col = 1, BLOCK_COLS do
@@ -358,9 +276,7 @@ local function update_game(dt)
         local hit_pos = (ball_x - paddle_x) / (PADDLE_WIDTH/2)
         ball_vx = ball_vx + hit_pos * 2
         -- Clamp velocity
-        if math.abs(ball_vx) > 6 then
-            ball_vx = 6 * (ball_vx > 0 and 1 or -1)
-        end
+        ball_vx = glm.clamp(ball_vx, -6, 6)
     end
 
     -- Block collision
@@ -401,20 +317,23 @@ local function update_game(dt)
     end
 end
 
-local function draw_cube(proj, view, x, y, z, sx, sy, sz, r, g, b)
-    local model = mat4_mul(mat4_translate(x, y, z), mat4_scale(sx, sy, sz))
-    local mvp = mat4_mul(proj, mat4_mul(view, model))
+-- Pack mat4 + mat4 + vec4 as uniforms
+local function pack_uniforms(mvp, model, color)
+    local data = {}
+    for i = 1, 16 do data[i] = mvp[i] end
+    for i = 1, 16 do data[16 + i] = model[i] end
+    data[33] = color.x
+    data[34] = color.y
+    data[35] = color.z
+    data[36] = 1.0
+    return util.pack_floats(data)
+end
 
-    -- Pack uniforms: mvp (16) + model (16) + color (4) = 36 floats
-    local uniforms = {}
-    for _, v in ipairs(mvp) do table.insert(uniforms, v) end
-    for _, v in ipairs(model) do table.insert(uniforms, v) end
-    table.insert(uniforms, r)
-    table.insert(uniforms, g)
-    table.insert(uniforms, b)
-    table.insert(uniforms, 1.0)  -- alpha
+local function draw_cube(proj, view, pos, scale, color)
+    local model = glm.translate(pos) * glm.scale(scale)
+    local mvp = proj * view * model
 
-    gfx.apply_uniforms(0, gfx.Range(util.pack_floats(uniforms)))
+    gfx.apply_uniforms(0, gfx.Range(pack_uniforms(mvp, model, color)))
     gfx.draw(0, 36, 1)
 end
 
@@ -434,14 +353,18 @@ function frame()
     end
     -- Clamp paddle
     local max_x = FIELD_WIDTH/2 - PADDLE_WIDTH/2
-    paddle_x = math.max(-max_x, math.min(max_x, paddle_x))
+    paddle_x = glm.clamp(paddle_x, -max_x, max_x)
 
     update_game(dt)
 
     -- Camera setup
     local aspect = app.widthf() / app.heightf()
-    local proj = mat4_perspective(math.rad(45), aspect, 0.1, 100.0)
-    local view = mat4_lookat(0, -5, 18, 0, 0, 0, 0, 1, 0)
+    local proj = glm.perspective(glm.radians(45), aspect, 0.1, 100.0)
+    local view = glm.lookat(
+        glm.vec3(0, -5, 18),
+        glm.vec3(0, 0, 0),
+        glm.vec3(0, 1, 0)
+    )
 
     -- Begin render pass
     gfx.begin_pass(gfx.Pass({
@@ -465,23 +388,23 @@ function frame()
     }))
 
     -- Draw walls (faint)
-    draw_cube(proj, view, -FIELD_WIDTH/2 - 0.25, 0, 0, 0.5, FIELD_HEIGHT, 1, 0.2, 0.2, 0.3)
-    draw_cube(proj, view, FIELD_WIDTH/2 + 0.25, 0, 0, 0.5, FIELD_HEIGHT, 1, 0.2, 0.2, 0.3)
-    draw_cube(proj, view, 0, FIELD_HEIGHT/2 + 0.25, 0, FIELD_WIDTH + 1, 0.5, 1, 0.2, 0.2, 0.3)
+    local wall_color = glm.vec3(0.2, 0.2, 0.3)
+    draw_cube(proj, view, glm.vec3(-FIELD_WIDTH/2 - 0.25, 0, 0), glm.vec3(0.5, FIELD_HEIGHT, 1), wall_color)
+    draw_cube(proj, view, glm.vec3(FIELD_WIDTH/2 + 0.25, 0, 0), glm.vec3(0.5, FIELD_HEIGHT, 1), wall_color)
+    draw_cube(proj, view, glm.vec3(0, FIELD_HEIGHT/2 + 0.25, 0), glm.vec3(FIELD_WIDTH + 1, 0.5, 1), wall_color)
 
     -- Draw paddle
     local paddle_y = -FIELD_HEIGHT/2 + 1
-    draw_cube(proj, view, paddle_x, paddle_y, 0, PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_DEPTH, 0.8, 0.8, 0.9)
+    draw_cube(proj, view, glm.vec3(paddle_x, paddle_y, 0), glm.vec3(PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_DEPTH), glm.vec3(0.8, 0.8, 0.9))
 
     -- Draw ball
     local pulse = math.sin(t * 10) * 0.1 + 0.9
-    draw_cube(proj, view, ball_x, ball_y, 0, BALL_SIZE, BALL_SIZE, BALL_SIZE, pulse, pulse, 1.0)
+    draw_cube(proj, view, glm.vec3(ball_x, ball_y, 0), glm.vec3(BALL_SIZE, BALL_SIZE, BALL_SIZE), glm.vec3(pulse, pulse, 1.0))
 
     -- Draw blocks
     for _, block in ipairs(blocks) do
         if block.alive then
-            local c = block.color
-            draw_cube(proj, view, block.x, block.y, 0, BLOCK_WIDTH, BLOCK_HEIGHT, BLOCK_DEPTH, c[1], c[2], c[3])
+            draw_cube(proj, view, glm.vec3(block.x, block.y, 0), glm.vec3(BLOCK_WIDTH, BLOCK_HEIGHT, BLOCK_DEPTH), block.color)
         end
     end
 

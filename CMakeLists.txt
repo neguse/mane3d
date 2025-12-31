@@ -270,6 +270,9 @@ if(MANE3D_BUILD_EXAMPLE)
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/examples/util.lua
         $<TARGET_FILE_DIR:mane3d-example>/util.lua
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib/glm.lua
+        $<TARGET_FILE_DIR:mane3d-example>/glm.lua
     )
 endif()
 
