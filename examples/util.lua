@@ -42,8 +42,9 @@ end
 -- @param source string: shader source code
 -- @param program_name string: program name in shader
 -- @param uniform_blocks table|nil: optional uniform block descriptors
+-- @param attrs table|nil: optional vertex attribute semantics for D3D11
 -- @return shader handle or nil on failure
-function M.compile_shader(source, program_name, uniform_blocks)
+function M.compile_shader(source, program_name, uniform_blocks, attrs)
     local shdc = require("shdc")
     local lang = M.get_shader_lang()
 
@@ -85,7 +86,7 @@ function M.compile_shader(source, program_name, uniform_blocks)
 
     -- D3D11 needs attribute semantics
     if backend == gfx.Backend.D3D11 then
-        desc_table.attrs = {
+        desc_table.attrs = attrs or {
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 0 },
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         }
