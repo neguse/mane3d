@@ -1,120 +1,105 @@
-# Måne
+# Måne3D
 
-A lightweight game framework for Lua 5.5 + Fennel.
+A lightweight game framework for Lua 5.5 built on the Sokol ecosystem.
 
-## Philosophy
+## What Works Now
 
-- **C API is everything** - Stable C layer, anything can sit on top
-- **Declarative resource management** - Declare what you use each frame, caching and diffing handled internally
-- **Blender as editor** - No custom editor, integrate with Blender
-- **Thin wrappers** - Don't over-abstract, drop down to low-level APIs when needed
-
-## Stack
-
-| Area         | Library                   |
-| ------------ | ------------------------- |
-| Graphics     | sokol_gfx, sokol_app      |
-| Physics (3D) | Jolt Physics (C wrapper)  |
-| Physics (2D) | Box2D                     |
-| Animation    | ozz-animation (C wrapper) |
-| Audio        | miniaudio                 |
-| Font         | fontstash + stb_truetype  |
-| Shaders      | sokol-shdc (precompiled)  |
-
-All C header-based. Unified bindgen pipeline generates Lua bindings.
-
-## Backends
-
-- Metal (macOS/iOS)
-- D3D11 (Windows)
-- Vulkan (Linux/Windows)
-- WebGPU (Browser)
-
-No WebGL2. We want compute shaders.
-
-## Scripting
-
-Lua 5.5 or Fennel.
-
-Fennel macros for sequences:
-
-```fennel
-(seq
-  (flash-lines)
-  (wait 0.3)
-  (clear-lines))
-```
-
-Compiles to data. State survives hot reload.
-
-## Resource Management
-
-React-like.
+Thin Lua bindings over Sokol libraries with runtime shader compilation.
 
 ```lua
-function draw()
-  local mesh = use_mesh("player.glb")
-  local shader = use_shader("skin.glsl")
-  draw_mesh(mesh, shader, transform)
+local gfx = require("sokol.gfx")
+local app = require("sokol.app")
+
+function init()
+    shader = util.compile_shader(shader_source, "triangle")
+    pipeline = gfx.make_pipeline(gfx.PipelineDesc({ ... }))
+end
+
+function frame()
+    gfx.begin_pass(...)
+    gfx.apply_pipeline(pipeline)
+    gfx.draw(0, 3, 1)
+    gfx.end_pass()
+    gfx.commit()
 end
 ```
 
-- Same ID = reuse existing resource
-- Change ID = recreate
-- Unreferenced = garbage collected on scene change
+### Available Modules
 
-## Blender Integration
+| Module | Description |
+| --- | --- |
+| `sokol.gfx` | Graphics API |
+| `sokol.app` | Window/events |
+| `sokol.gl` | Immediate mode rendering |
+| `sokol.debugtext` | Debug text |
+| `sokol.time` | Timing |
+| `sokol.log` | Logging |
+| `sokol.glue` | gfx/app glue |
+| `shdc` | Shader compilation |
 
-- **Naming convention** - Object name = script name (`elevator_01` → `elevator_01.lua`)
-- **Custom properties** - Edit parameters in Blender
-- **Live link** - Changes reflect immediately
-- **glTF export** - Standard format, lightweight
+### Supported Backends
 
-```
-Double-click in Blender → Opens script in VSCode
-```
-
-## Shaders
-
-sokol-shdc for precompilation. GLSL → Metal/HLSL/SPIR-V/WGSL.
-
-Compute shader support. SSAO and other post-processing.
+- D3D11 (Windows)
+- Metal (macOS)
+- OpenGL (Linux)
+- WebGPU (planned)
 
 ## Build
 
+```bash
+# Windows (D3D11)
+cmake --preset win-d3d11-debug
+cmake --build --preset win-d3d11-debug
+
+# macOS (Metal)
+cmake --preset macos-metal-release
+cmake --build --preset macos-metal-release
+
+# Linux (OpenGL)
+cmake --preset linux-gl-debug
+cmake --build --preset linux-gl-debug
 ```
-make          # Native
-make web      # WASM + WebGPU
+
+Run the example:
+```bash
+./build/win-d3d11-debug/example.exe examples/main.lua
 ```
 
-Same codebase outputs to web via Emscripten.
+## Ideas
 
-## Status
+Not yet implemented.
 
-Initial target: D3D11 (Windows) + WebGPU only.
+### Retained Mode + Auto GC
 
-| Feature                         | Status      |
-| ------------------------------- | ----------- |
-| sokol bindings                  | Done        |
-| Runtime shader compilation      | Done        |
-| WebGPU backend                  | Not started |
-| glTF loader                     | Not started |
-| Declarative resources (`use_*`) | Not started |
-| Fennel support                  | Not started |
-| Hot reload                      | Not started |
-| miniaudio                       | Not started |
-| fontstash                       | Not started |
-| Box2D                           | Not started |
-| Jolt Physics                    | Not started |
-| ozz-animation                   | Not started |
-| Blender integration             | Not started |
+Pass all resources every frame. Same handle = reuse. Unused handles get garbage collected.
 
-## Non-Goals
+```lua
+function frame()
+    draw_mesh({
+        shader = my_shader_handle,
+        mesh = my_mesh_handle,
+        transform = transform,
+    })
+end
+```
 
-- Scene graphs
-- Visual scripting
-- Custom editor
-- USD support
+### Blender as Editor
+
+- Object name = script name (`elevator_01` → `elevator_01.lua`)
+- Custom properties for parameters
+- glTF export
+
+### Other Ideas
+
+- Fennel + sequence macros
+- Hot reload
+
+## Design Principles
+
+- **À la carte** - No monolithic framework. Compose from standalone modules.
+- **Lua for gameplay, C for performance** - Write game logic fast, optimize hot paths in C.
+- **Asset freedom** - No proprietary formats. Generate and modify anything from Lua at runtime.
+- **As fast as you type** - Hot reload code, shaders, assets. The tools never slow you down.
 
 ## License
 
