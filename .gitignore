@@ -6,6 +6,9 @@ install/
 # Generated code
 gen/
 
+# External assets (not licensed for redistribution)
+assets/
+
 # IDE
 .vs/
 .vscode/
