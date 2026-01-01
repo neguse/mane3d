@@ -54,6 +54,12 @@ local motion_blur_enabled = false
 local motion_blur_size = 2
 local motion_blur_separation = 1.0
 
+-- Chromatic aberration parameters
+local chromatic_enabled = true
+local chromatic_red_offset = 0.009
+local chromatic_green_offset = 0.006
+local chromatic_blue_offset = -0.006
+
 -- Graphics resources
 local geom_shader = nil
 ---@type gfx.Pipeline
@@ -350,14 +356,31 @@ layout(binding=0) uniform texture2D color_tex;
 layout(binding=0) uniform sampler color_smp;
 
 layout(binding=0) uniform fs_params {
-    vec4 blur_params;   // x = size, y = separation, z = enabled
-    vec4 bloom_params;  // x = size, y = separation, z = threshold, w = amount
-    vec4 bloom_enabled; // x = enabled
+    vec4 blur_params;      // x = size, y = separation, z = enabled
+    vec4 bloom_params;     // x = size, y = separation, z = threshold, w = amount
+    vec4 bloom_enabled;    // x = enabled
+    vec4 chromatic_params; // x = enabled, y = red offset, z = green offset, w = blue offset
 };
 
 void main() {
     vec2 tex_size = vec2(textureSize(sampler2D(color_tex, color_smp), 0));
-    vec4 original = texture(sampler2D(color_tex, color_smp), v_uv);
+    vec2 texCoord = v_uv;
+
+    // Chromatic aberration - sample RGB with different offsets
+    vec4 original;
+    if (chromatic_params.x > 0.5) {
+        vec2 direction = texCoord - vec2(0.5);  // Radiate from center
+        float redOffset = chromatic_params.y;
+        float greenOffset = chromatic_params.z;
+        float blueOffset = chromatic_params.w;
+
+        original.r = texture(sampler2D(color_tex, color_smp), texCoord + direction * redOffset).r;
+        original.g = texture(sampler2D(color_tex, color_smp), texCoord + direction * greenOffset).g;
+        original.b = texture(sampler2D(color_tex, color_smp), texCoord + direction * blueOffset).b;
+        original.a = texture(sampler2D(color_tex, color_smp), texCoord).a;
+    } else {
+        original = texture(sampler2D(color_tex, color_smp), texCoord);
+    }
 
     // Blur pass
     vec4 blurred = original;
@@ -372,7 +395,7 @@ void main() {
         for (int i = -blur_size; i <= blur_size; ++i) {
             for (int j = -blur_size; j <= blur_size; ++j) {
                 vec2 offset = vec2(float(i), float(j)) * blur_separation / tex_size;
-                blurred += texture(sampler2D(color_tex, color_smp), v_uv + offset);
+                blurred += texture(sampler2D(color_tex, color_smp), texCoord + offset);
                 count += 1.0;
             }
         }
@@ -391,7 +414,7 @@ void main() {
         for (int i = -bloom_size; i <= bloom_size; ++i) {
             for (int j = -bloom_size; j <= bloom_size; ++j) {
                 vec2 offset = vec2(float(i), float(j)) * bloom_separation / tex_size;
-                vec4 sample_color = texture(sampler2D(color_tex, color_smp), v_uv + offset);
+                vec4 sample_color = texture(sampler2D(color_tex, color_smp), texCoord + offset);
 
                 // Check if bright enough
                 float brightness = max(sample_color.r, max(sample_color.g, sample_color.b));
@@ -905,16 +928,17 @@ function init()
         },
     }))
 
-    -- Blur shader (includes bloom)
+    -- Blur shader (includes bloom + chromatic aberration)
     local blur_desc = {
         uniform_blocks = {
             {
                 stage = gfx.ShaderStage.FRAGMENT,
-                size = 48,  -- 3 vec4
+                size = 64,  -- 4 vec4
                 glsl_uniforms = {
                     { glsl_name = "blur_params", type = gfx.UniformType.FLOAT4 },
                     { glsl_name = "bloom_params", type = gfx.UniformType.FLOAT4 },
                     { glsl_name = "bloom_enabled", type = gfx.UniformType.FLOAT4 },
+                    { glsl_name = "chromatic_params", type = gfx.UniformType.FLOAT4 },
                 },
             },
         },
@@ -1396,11 +1420,12 @@ function frame()
         samplers = { gbuf_sampler },
     }))
 
-    -- Post-processing uniforms (blur + bloom)
-    local post_uniforms = string.pack("ffff ffff ffff",
+    -- Post-processing uniforms (blur + bloom + chromatic aberration)
+    local post_uniforms = string.pack("ffff ffff ffff ffff",
         blur_size, blur_separation, blur_enabled and 1.0 or 0.0, 0.0,
         bloom_size, bloom_separation, bloom_threshold, bloom_amount,
-        bloom_enabled and 1.0 or 0.0, 0.0, 0.0, 0.0
+        bloom_enabled and 1.0 or 0.0, 0.0, 0.0, 0.0,
+        chromatic_enabled and 1.0 or 0.0, chromatic_red_offset, chromatic_green_offset, chromatic_blue_offset
     )
     gfx.apply_uniforms(0, gfx.Range(post_uniforms))
     gfx.draw(0, 6, 1)
@@ -1472,6 +1497,13 @@ function frame()
             motion_blur_enabled = imgui.Checkbox("Motion Blur Enabled", motion_blur_enabled)
             motion_blur_size = imgui.SliderInt("Samples", motion_blur_size, 1, 16)
             motion_blur_separation = imgui.SliderFloat("Separation", motion_blur_separation, 0.5, 3.0)
+        end
+
+        if imgui.CollapsingHeader("Chromatic Aberration") then
+            chromatic_enabled = imgui.Checkbox("Enabled", chromatic_enabled)
+            chromatic_red_offset = imgui.SliderFloat("Red Offset", chromatic_red_offset, -0.02, 0.02)
+            chromatic_green_offset = imgui.SliderFloat("Green Offset", chromatic_green_offset, -0.02, 0.02)
+            chromatic_blue_offset = imgui.SliderFloat("Blue Offset", chromatic_blue_offset, -0.02, 0.02)
         end
 
         if imgui.CollapsingHeader("Lighting Effects") then

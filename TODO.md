@@ -52,12 +52,12 @@ Step-by-step port to mane3d.
 - [x] 12. Cel Shading (toon bands + hard specular)
 - [x] 13. Normal Mapping (examples/model.lua + mill-scene)
 - [x] 14. Deferred Rendering (examples/deferred.lua + G-buffer MRT)
-- [ ] 15. Fog
-- [ ] 16. Blur
-- [ ] 17. Bloom
-- [ ] 18. SSAO
-- [ ] 19. Motion Blur
-- [ ] 20. Chromatic Aberration
+- [x] 15. Fog (gradient sky, sun position, gamma-corrected colors)
+- [x] 16. Blur (box blur post-processing)
+- [x] 17. Bloom (brightness threshold + blur)
+- [x] 18. SSAO (view-space hemisphere sampling)
+- [x] 19. Motion Blur (previous/current view matrix comparison)
+- [x] 20. Chromatic Aberration (radial RGB offset)
 - [ ] 21. Screen Space Reflection
 - [ ] 22. Screen Space Refraction
 - [ ] 23. Foam
