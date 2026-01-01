@@ -35,6 +35,12 @@ local bloom_separation = 3.0
 local bloom_threshold = 0.6
 local bloom_amount = 1.0
 
+-- SSAO parameters
+local ssao_enabled = true
+local ssao_radius = 0.5
+local ssao_bias = 0.025
+local ssao_intensity = 1.5
+
 -- Graphics resources
 local geom_shader = nil
 ---@type gfx.Pipeline
@@ -75,6 +81,14 @@ local scene_depth_attach = nil
 local blur_shader = nil
 ---@type gfx.Pipeline
 local blur_pipeline = nil
+
+-- SSAO resources
+local ssao_img = nil
+local ssao_attach = nil
+local ssao_tex = nil
+local ssao_shader = nil
+---@type gfx.Pipeline
+local ssao_pipeline = nil
 
 -- Time
 local t = 0
@@ -174,6 +188,8 @@ layout(binding=1) uniform texture2D normal_tex;
 layout(binding=1) uniform sampler normal_smp;
 layout(binding=2) uniform texture2D albedo_tex;
 layout(binding=2) uniform sampler albedo_smp;
+layout(binding=3) uniform texture2D ssao_tex;
+layout(binding=3) uniform sampler ssao_smp;
 
 layout(binding=0) uniform fs_params {
     vec4 light_pos;
@@ -200,8 +216,11 @@ void main() {
     vec3 view_dir = normalize(camera_pos.xyz - world_pos);
     vec3 n = normalize(normal);
 
-    // Ambient
-    vec3 ambient = ambient_color.rgb * albedo.rgb;
+    // Sample SSAO
+    float ssao = texture(sampler2D(ssao_tex, ssao_smp), v_uv).r;
+
+    // Ambient (modulated by SSAO)
+    vec3 ambient = ambient_color.rgb * albedo.rgb * ssao;
 
     // Diffuse
     float diff = max(dot(n, light_dir), 0.0);
@@ -312,6 +331,121 @@ void main() {
 @program blur blur_vs blur_fs
 ]]
 
+-- SSAO Shader
+local ssao_shader_source = [[
+@vs ssao_vs
+in vec2 pos;
+in vec2 uv;
+
+out vec2 v_uv;
+
+void main() {
+    gl_Position = vec4(pos, 0.0, 1.0);
+    v_uv = vec2(uv.x, 1.0 - uv.y);
+}
+@end
+
+@fs ssao_fs
+in vec2 v_uv;
+
+out vec4 frag_color;
+
+layout(binding=0) uniform texture2D position_tex;
+layout(binding=0) uniform sampler position_smp;
+layout(binding=1) uniform texture2D normal_tex;
+layout(binding=1) uniform sampler normal_smp;
+
+layout(binding=0) uniform fs_params {
+    mat4 view_mat;
+    mat4 proj_mat;
+    vec4 params;  // x = radius, y = bias, z = intensity, w = enabled
+};
+
+// Simple hash function for noise
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+vec3 hash3(vec2 p) {
+    return vec3(
+        hash(p),
+        hash(p + vec2(37.0, 17.0)),
+        hash(p + vec2(59.0, 83.0))
+    );
+}
+
+void main() {
+    if (params.w < 0.5) {
+        frag_color = vec4(1.0);
+        return;
+    }
+
+    float radius = params.x;
+    float bias = params.y;
+    float intensity = params.z;
+
+    // Sample G-buffer
+    vec3 world_pos = texture(sampler2D(position_tex, position_smp), v_uv).rgb;
+    vec3 world_normal = texture(sampler2D(normal_tex, normal_smp), v_uv).rgb * 2.0 - 1.0;
+
+    // Check for background
+    float alpha = texture(sampler2D(position_tex, position_smp), v_uv).a;
+    if (alpha < 0.01) {
+        frag_color = vec4(1.0);
+        return;
+    }
+
+    // Transform to view space
+    vec3 view_pos = (view_mat * vec4(world_pos, 1.0)).xyz;
+    vec3 view_normal = normalize(mat3(view_mat) * world_normal);
+
+    // Generate TBN matrix from normal and random vector
+    vec2 noise_uv = v_uv * vec2(800.0, 600.0) * 0.25;  // tile noise
+    vec3 random_vec = normalize(hash3(noise_uv) * 2.0 - 1.0);
+    vec3 tangent = normalize(random_vec - view_normal * dot(random_vec, view_normal));
+    vec3 bitangent = cross(view_normal, tangent);
+    mat3 tbn = mat3(tangent, bitangent, view_normal);
+
+    // Sample hemisphere
+    float occlusion = 0.0;
+    const int NUM_SAMPLES = 16;
+
+    for (int i = 0; i < NUM_SAMPLES; ++i) {
+        // Generate sample in hemisphere
+        vec3 rand = hash3(v_uv * 1000.0 + vec2(float(i) * 7.23, float(i) * 3.14));
+        vec3 sample_dir = normalize(rand * 2.0 - 1.0);
+        sample_dir.z = abs(sample_dir.z);  // hemisphere
+
+        // Scale sample (closer samples have more weight)
+        float scale = float(i) / float(NUM_SAMPLES);
+        scale = mix(0.1, 1.0, scale * scale);
+
+        vec3 sample_pos = view_pos + tbn * sample_dir * radius * scale;
+
+        // Project sample to screen space
+        vec4 offset = proj_mat * vec4(sample_pos, 1.0);
+        offset.xyz /= offset.w;
+        offset.xy = offset.xy * 0.5 + 0.5;
+
+        // Sample depth at offset
+        vec3 offset_world_pos = texture(sampler2D(position_tex, position_smp), offset.xy).rgb;
+        vec3 offset_view_pos = (view_mat * vec4(offset_world_pos, 1.0)).xyz;
+
+        // Check occlusion (compare depths in view space, z is negative looking into screen)
+        float range_check = smoothstep(0.0, 1.0, radius / abs(view_pos.z - offset_view_pos.z));
+        occlusion += (offset_view_pos.z >= sample_pos.z + bias ? 1.0 : 0.0) * range_check;
+    }
+
+    occlusion = 1.0 - (occlusion / float(NUM_SAMPLES)) * intensity;
+    occlusion = clamp(occlusion, 0.0, 1.0);
+
+    frag_color = vec4(vec3(occlusion), 1.0);
+}
+@end
+
+@program ssao ssao_vs ssao_fs
+]]
+
 -- Compute tangent vectors for a triangle
 local function compute_tangent(p1, p2, p3, uv1, uv2, uv3)
     local edge1 = { p2[1] - p1[1], p2[2] - p1[2], p2[3] - p1[3] }
@@ -413,6 +547,20 @@ local function create_gbuffer(w, h)
     }))
     scene_tex = gfx.make_view(gfx.ViewDesc({
         texture = { image = scene_img },
+    }))
+
+    -- SSAO render target
+    ssao_img = gfx.make_image(gfx.ImageDesc({
+        usage = { color_attachment = true },
+        width = w,
+        height = h,
+        pixel_format = gfx.PixelFormat.R8,  -- single channel occlusion
+    }))
+    ssao_attach = gfx.make_view(gfx.ViewDesc({
+        color_attachment = { image = ssao_img },
+    }))
+    ssao_tex = gfx.make_view(gfx.ViewDesc({
+        texture = { image = ssao_img },
     }))
 end
 
@@ -528,16 +676,19 @@ function init()
             { texture = { stage = gfx.ShaderStage.FRAGMENT, image_type = gfx.ImageType["2D"], sample_type = gfx.ImageSampleType.FLOAT, hlsl_register_t_n = 0 } },
             { texture = { stage = gfx.ShaderStage.FRAGMENT, image_type = gfx.ImageType["2D"], sample_type = gfx.ImageSampleType.FLOAT, hlsl_register_t_n = 1 } },
             { texture = { stage = gfx.ShaderStage.FRAGMENT, image_type = gfx.ImageType["2D"], sample_type = gfx.ImageSampleType.FLOAT, hlsl_register_t_n = 2 } },
+            { texture = { stage = gfx.ShaderStage.FRAGMENT, image_type = gfx.ImageType["2D"], sample_type = gfx.ImageSampleType.FLOAT, hlsl_register_t_n = 3 } },
         },
         samplers = {
             { stage = gfx.ShaderStage.FRAGMENT, sampler_type = gfx.SamplerType.FILTERING, hlsl_register_s_n = 0 },
             { stage = gfx.ShaderStage.FRAGMENT, sampler_type = gfx.SamplerType.FILTERING, hlsl_register_s_n = 1 },
             { stage = gfx.ShaderStage.FRAGMENT, sampler_type = gfx.SamplerType.FILTERING, hlsl_register_s_n = 2 },
+            { stage = gfx.ShaderStage.FRAGMENT, sampler_type = gfx.SamplerType.FILTERING, hlsl_register_s_n = 3 },
         },
         texture_sampler_pairs = {
             { stage = gfx.ShaderStage.FRAGMENT, view_slot = 0, sampler_slot = 0, glsl_name = "position_tex_position_smp" },
             { stage = gfx.ShaderStage.FRAGMENT, view_slot = 1, sampler_slot = 1, glsl_name = "normal_tex_normal_smp" },
             { stage = gfx.ShaderStage.FRAGMENT, view_slot = 2, sampler_slot = 2, glsl_name = "albedo_tex_albedo_smp" },
+            { stage = gfx.ShaderStage.FRAGMENT, view_slot = 3, sampler_slot = 3, glsl_name = "ssao_tex_ssao_smp" },
         },
         attrs = {
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 0 },
@@ -608,6 +759,59 @@ function init()
                 { format = gfx.VertexFormat.FLOAT2 },  -- pos
                 { format = gfx.VertexFormat.FLOAT2 },  -- uv
             },
+        },
+    }))
+
+    -- SSAO shader
+    local ssao_desc = {
+        uniform_blocks = {
+            {
+                stage = gfx.ShaderStage.FRAGMENT,
+                size = 144,  -- 2 mat4 (128) + 1 vec4 (16)
+                glsl_uniforms = {
+                    { glsl_name = "view_mat", type = gfx.UniformType.MAT4 },
+                    { glsl_name = "proj_mat", type = gfx.UniformType.MAT4 },
+                    { glsl_name = "params", type = gfx.UniformType.FLOAT4 },
+                },
+            },
+        },
+        views = {
+            { texture = { stage = gfx.ShaderStage.FRAGMENT, image_type = gfx.ImageType["2D"], sample_type = gfx.ImageSampleType.FLOAT, hlsl_register_t_n = 0 } },
+            { texture = { stage = gfx.ShaderStage.FRAGMENT, image_type = gfx.ImageType["2D"], sample_type = gfx.ImageSampleType.FLOAT, hlsl_register_t_n = 1 } },
+        },
+        samplers = {
+            { stage = gfx.ShaderStage.FRAGMENT, sampler_type = gfx.SamplerType.FILTERING, hlsl_register_s_n = 0 },
+            { stage = gfx.ShaderStage.FRAGMENT, sampler_type = gfx.SamplerType.FILTERING, hlsl_register_s_n = 1 },
+        },
+        texture_sampler_pairs = {
+            { stage = gfx.ShaderStage.FRAGMENT, view_slot = 0, sampler_slot = 0, glsl_name = "position_tex_position_smp" },
+            { stage = gfx.ShaderStage.FRAGMENT, view_slot = 1, sampler_slot = 1, glsl_name = "normal_tex_normal_smp" },
+        },
+        attrs = {
+            { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 0 },
+            { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
+        },
+    }
+    ssao_shader = util.compile_shader_full(ssao_shader_source, "ssao", ssao_desc)
+    if not ssao_shader then
+        util.error("Failed to compile SSAO shader")
+        return
+    end
+
+    -- SSAO pipeline
+    ssao_pipeline = gfx.make_pipeline(gfx.PipelineDesc({
+        shader = ssao_shader,
+        layout = {
+            attrs = {
+                { format = gfx.VertexFormat.FLOAT2 },  -- pos
+                { format = gfx.VertexFormat.FLOAT2 },  -- uv
+            },
+        },
+        colors = {
+            { pixel_format = gfx.PixelFormat.R8 },
+        },
+        depth = {
+            pixel_format = gfx.PixelFormat.NONE,
         },
     }))
 
@@ -820,6 +1024,37 @@ function frame()
     end
 
     gfx.end_pass()
+
+    -- === SSAO PASS ===
+    gfx.begin_pass(gfx.Pass({
+        action = gfx.PassAction({
+            colors = {{
+                load_action = gfx.LoadAction.CLEAR,
+                clear_value = { r = 1.0, g = 1.0, b = 1.0, a = 1.0 },
+            }},
+        }),
+        attachments = {
+            colors = { ssao_attach },
+        },
+    }))
+
+    gfx.apply_pipeline(ssao_pipeline)
+
+    gfx.apply_bindings(gfx.Bindings({
+        vertex_buffers = { quad_vbuf },
+        views = { gbuf_position_tex, gbuf_normal_tex },
+        samplers = { gbuf_sampler, gbuf_sampler },
+    }))
+
+    -- SSAO uniforms: view matrix, projection matrix, params
+    local ssao_uniforms = view:pack() .. proj:pack() .. string.pack("ffff",
+        ssao_radius, ssao_bias, ssao_intensity, ssao_enabled and 1.0 or 0.0
+    )
+    gfx.apply_uniforms(0, gfx.Range(ssao_uniforms))
+    gfx.draw(0, 6, 1)
+
+    gfx.end_pass()
+
     -- === LIGHTING PASS (to scene render target) ===
     gfx.begin_pass(gfx.Pass({
         action = gfx.PassAction({
@@ -837,8 +1072,8 @@ function frame()
 
     gfx.apply_bindings(gfx.Bindings({
         vertex_buffers = { quad_vbuf },
-        views = { gbuf_position_tex, gbuf_normal_tex, gbuf_albedo_tex },
-        samplers = { gbuf_sampler, gbuf_sampler, gbuf_sampler },
+        views = { gbuf_position_tex, gbuf_normal_tex, gbuf_albedo_tex, ssao_tex },
+        samplers = { gbuf_sampler, gbuf_sampler, gbuf_sampler, gbuf_sampler },
     }))
 
     -- Lighting uniforms (including fog)
@@ -912,6 +1147,13 @@ function frame()
             bloom_separation = imgui.SliderFloat("Bloom Separation", bloom_separation, 1.0, 5.0)
             bloom_threshold = imgui.SliderFloat("Threshold", bloom_threshold, 0.0, 1.0)
             bloom_amount = imgui.SliderFloat("Amount", bloom_amount, 0.0, 3.0)
+        end
+
+        if imgui.CollapsingHeader("SSAO") then
+            ssao_enabled = imgui.Checkbox("SSAO Enabled", ssao_enabled)
+            ssao_radius = imgui.SliderFloat("Radius", ssao_radius, 0.1, 2.0)
+            ssao_bias = imgui.SliderFloat("Bias", ssao_bias, 0.0, 0.1)
+            ssao_intensity = imgui.SliderFloat("Intensity", ssao_intensity, 0.5, 3.0)
         end
 
         imgui.Separator()
