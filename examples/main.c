@@ -113,6 +113,21 @@ static int fetch_searcher(lua_State *L)
     return 1;
 }
 
+/* Lua wrapper for fetch_file */
+static int l_fetch_file(lua_State *L)
+{
+    const char *url = luaL_checkstring(L, 1);
+    size_t len;
+    char *data = fetch_file(url, &len);
+    if (data && len > 0) {
+        lua_pushlstring(L, data, len);
+        free(data);
+        return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+}
+
 static void setup_fetch_searcher(lua_State *L)
 {
     lua_getglobal(L, "package");
@@ -204,6 +219,10 @@ sapp_desc sokol_main(int argc, char *argv[])
 
 #ifdef __EMSCRIPTEN__
     setup_fetch_searcher(L);
+
+    /* Expose fetch_file to Lua for texture loading etc. */
+    lua_pushcfunction(L, (lua_CFunction)l_fetch_file);
+    lua_setglobal(L, "fetch_file");
 #endif
 
     /* Register generated sokol modules */

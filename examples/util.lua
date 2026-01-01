@@ -110,4 +110,60 @@ function M.pack_floats(floats)
     return string.pack(string.rep("f", #floats), table.unpack(floats))
 end
 
+-- Load raw image data from file (handles WASM fetch)
+-- @param filename string: path to image file
+-- @return width, height, channels, pixels or nil, error_message
+function M.load_image_data(filename)
+    local stb = require("stb.image")
+
+    -- Check if running in WASM (fetch_file is defined in main.c for Emscripten)
+    if _G.fetch_file then
+        local data = _G.fetch_file(filename)
+        if not data then
+            return nil, "Failed to fetch: " .. filename
+        end
+        return stb.load_from_memory(data, 4)
+    else
+        -- Native: load directly from filesystem
+        return stb.load(filename, 4)
+    end
+end
+
+-- Load texture from file
+-- @param filename string: path to image file (PNG, JPG, etc.)
+-- @param opts table|nil: optional settings { filter_min, filter_mag, wrap_u, wrap_v }
+-- @return sg_image, sg_sampler or nil, error_message on failure
+function M.load_texture(filename, opts)
+    opts = opts or {}
+
+    local w, h, ch, pixels = M.load_image_data(filename)
+    if not w then
+        return nil, h -- h contains error message
+    end
+
+    M.info("Loaded texture: " .. filename .. " (" .. w .. "x" .. h .. ")")
+
+    -- Create image
+    local img = gfx.make_image(gfx.ImageDesc({
+        width = w,
+        height = h,
+        pixel_format = gfx.PixelFormat.RGBA8,
+        data = { mip_levels = { pixels } },
+    }))
+
+    if gfx.query_image_state(img) ~= gfx.ResourceState.VALID then
+        return nil, "Failed to create image"
+    end
+
+    -- Create sampler
+    local smp = gfx.make_sampler(gfx.SamplerDesc({
+        min_filter = opts.filter_min or gfx.Filter.LINEAR,
+        mag_filter = opts.filter_mag or gfx.Filter.LINEAR,
+        wrap_u = opts.wrap_u or gfx.Wrap.REPEAT,
+        wrap_v = opts.wrap_v or gfx.Wrap.REPEAT,
+    }))
+
+    return img, smp
+end
+
 return M
