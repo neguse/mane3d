@@ -21,9 +21,12 @@ local ambient_color = glm.vec3(0.5, 0.5, 0.5)  -- brighter
 -- Graphics resources
 local shader = nil
 local pipeline = nil
-local vbuf = nil
-local ibuf = nil
-local mesh_data = nil
+local cube_vbuf = nil
+local cube_ibuf = nil
+local cube_data = nil
+local sphere_vbuf = nil
+local sphere_ibuf = nil
+local sphere_data = nil
 
 -- Time
 local t = 0
@@ -85,24 +88,41 @@ in vec4 v_specular;
 
 out vec4 frag_color;
 
+// Cel shading helper: quantize to steps
+float cel_step(float v, float steps) {
+    return floor(v * steps) / steps;
+}
+
 void main() {
     vec3 n = normalize(v_normal);
     vec3 light_dir = normalize(v_light_pos.xyz - v_world_pos);
     vec3 view_dir = normalize(v_camera_pos.xyz - v_world_pos);
 
     // Ambient
-    vec3 ambient = v_ambient.rgb * v_diffuse.rgb;
+    vec3 ambient = v_ambient.rgb * v_diffuse.rgb * 0.3;
 
-    // Diffuse
+    // Diffuse with cel shading
     float diff = max(dot(n, light_dir), 0.0);
+    diff = cel_step(diff, 3.0);  // 3 bands
     vec3 diffuse = v_light_color.rgb * diff * v_diffuse.rgb;
 
-    // Specular (Blinn-Phong)
+    // Specular (Blinn-Phong) with cel shading
     vec3 halfway = normalize(light_dir + view_dir);
     float spec = pow(max(dot(n, halfway), 0.0), v_specular.w);
-    vec3 specular = v_light_color.rgb * spec * v_specular.rgb;
+    spec = step(0.5, spec);  // hard cutoff for toon specular
 
-    vec3 result = ambient + diffuse + specular;
+    // Fresnel factor (Schlick's approximation)
+    float fresnel = pow(1.0 - max(dot(halfway, view_dir), 0.0), 5.0);
+    vec3 spec_color = mix(v_specular.rgb, vec3(1.0), fresnel);
+
+    vec3 specular = v_light_color.rgb * spec * spec_color;
+
+    // Rim lighting with cel shading
+    float rim_intensity = 1.0 - max(dot(view_dir, n), 0.0);
+    rim_intensity = smoothstep(0.6, 0.7, rim_intensity);  // hard edge rim
+    vec3 rim_light = rim_intensity * v_diffuse.rgb * 0.5;
+
+    vec3 result = ambient + diffuse + specular + rim_light;
     frag_color = vec4(result, 1.0);
 }
 @end
@@ -165,6 +185,65 @@ local function pack_indices(indices)
     return string.pack(string.rep("H", #indices), table.unpack(indices))
 end
 
+-- Generate UV sphere
+local function make_sphere_vertices(segments, rings)
+    segments = segments or 32
+    rings = rings or 16
+    local v = {}
+
+    for ring = 0, rings do
+        local theta = math.pi * ring / rings
+        local sin_theta = math.sin(theta)
+        local cos_theta = math.cos(theta)
+
+        for seg = 0, segments do
+            local phi = 2 * math.pi * seg / segments
+            local sin_phi = math.sin(phi)
+            local cos_phi = math.cos(phi)
+
+            -- Position (on unit sphere)
+            local x = cos_phi * sin_theta
+            local y = sin_phi * sin_theta
+            local z = cos_theta
+
+            -- Normal = position for unit sphere
+            -- UV
+            local u = seg / segments
+            local v_coord = ring / rings
+
+            -- pos (3) + normal (3) + uv (2)
+            table.insert(v, x)
+            table.insert(v, y)
+            table.insert(v, z)
+            table.insert(v, x)  -- normal = pos
+            table.insert(v, y)
+            table.insert(v, z)
+            table.insert(v, u)
+            table.insert(v, v_coord)
+        end
+    end
+    return v, segments, rings
+end
+
+local function make_sphere_indices(segments, rings)
+    local indices = {}
+    for ring = 0, rings - 1 do
+        for seg = 0, segments - 1 do
+            local curr = ring * (segments + 1) + seg
+            local next_ring = (ring + 1) * (segments + 1) + seg
+
+            table.insert(indices, curr)
+            table.insert(indices, next_ring)
+            table.insert(indices, curr + 1)
+
+            table.insert(indices, curr + 1)
+            table.insert(indices, next_ring)
+            table.insert(indices, next_ring + 1)
+        end
+    end
+    return indices
+end
+
 function init()
     util.info("Lighting example init")
 
@@ -215,21 +294,37 @@ function init()
     }))
 
     -- Create cube geometry
-    local vertices = make_cube_vertices()
-    local indices = make_cube_indices()
+    local cube_verts = make_cube_vertices()
+    local cube_indices = make_cube_indices()
 
-    vbuf = gfx.make_buffer(gfx.BufferDesc({
-        data = gfx.Range(util.pack_floats(vertices)),
+    cube_vbuf = gfx.make_buffer(gfx.BufferDesc({
+        data = gfx.Range(util.pack_floats(cube_verts)),
     }))
 
-    ibuf = gfx.make_buffer(gfx.BufferDesc({
+    cube_ibuf = gfx.make_buffer(gfx.BufferDesc({
         usage = { index_buffer = true },
-        data = gfx.Range(pack_indices(indices)),
+        data = gfx.Range(pack_indices(cube_indices)),
     }))
 
-    mesh_data = {
-        vertex_count = #vertices / 8,
-        index_count = #indices,
+    cube_data = {
+        index_count = #cube_indices,
+    }
+
+    -- Create sphere geometry
+    local sphere_verts, segs, rings = make_sphere_vertices(24, 12)
+    local sphere_indices = make_sphere_indices(segs, rings)
+
+    sphere_vbuf = gfx.make_buffer(gfx.BufferDesc({
+        data = gfx.Range(util.pack_floats(sphere_verts)),
+    }))
+
+    sphere_ibuf = gfx.make_buffer(gfx.BufferDesc({
+        usage = { index_buffer = true },
+        data = gfx.Range(pack_indices(sphere_indices)),
+    }))
+
+    sphere_data = {
+        index_count = #sphere_indices,
     }
 
     util.info("Init complete")
@@ -290,70 +385,63 @@ function frame()
     }))
 
     gfx.apply_pipeline(pipeline)
+
+    -- Draw spheres (better for showing Fresnel)
     gfx.apply_bindings(gfx.Bindings({
-        vertex_buffers = { vbuf },
-        index_buffer = ibuf,
+        vertex_buffers = { sphere_vbuf },
+        index_buffer = sphere_ibuf,
     }))
 
-    -- Draw multiple cubes
-    local positions = {
+    local sphere_positions = {
         {0, 0, 0},
-        {3, 0, 0},
-        {-3, 0, 0},
-        {0, 3, 0},
-        {0, -3, 0},
-        {0, 0, 3},
-        {1.5, 1.5, 1.5},
-        {-1.5, -1.5, 1.5},
+        {4, 0, 0},
+        {-4, 0, 0},
+        {0, 4, 0},
+        {0, -4, 0},
     }
 
-    local colors = {
+    local sphere_colors = {
         {1, 0.3, 0.3},
         {0.3, 1, 0.3},
         {0.3, 0.3, 1},
         {1, 1, 0.3},
-        {1, 0.3, 1},
         {0.3, 1, 1},
-        {1, 0.6, 0.2},
-        {0.6, 0.2, 1},
     }
 
-    for i, pos in ipairs(positions) do
-        local model = glm.translate(glm.vec3(pos[1], pos[2], pos[3]))
-        model = model * glm.rotate(t * (0.5 + i * 0.1), glm.vec3(0.5, 0.3, 0.1):normalize())
+    for i, pos in ipairs(sphere_positions) do
+        local model = glm.translate(glm.vec3(pos[1], pos[2], pos[3])) * glm.scale(glm.vec3(1.5, 1.5, 1.5))
         local mvp = proj * view * model
 
-        local color = colors[i]
+        local color = sphere_colors[i]
 
-        -- All uniforms in one block: mvp, model, light_pos, light_color, ambient_color, camera_pos, diffuse, specular
         local uniforms = mvp:pack() .. model:pack() .. util.pack_floats({
             light_pos.x, light_pos.y, light_pos.z, 1,
             light_color.x, light_color.y, light_color.z, 1,
             ambient_color.x, ambient_color.y, ambient_color.z, 1,
             camera_pos.x, camera_pos.y, camera_pos.z, 1,
             color[1], color[2], color[3], 1,  -- diffuse
-            0.5, 0.5, 0.5, 32,  -- specular + shininess
+            0.3, 0.3, 0.3, 64,  -- specular + shininess
         })
 
         gfx.apply_uniforms(0, gfx.Range(uniforms))
-        gfx.draw(0, mesh_data.index_count, 1)
+        gfx.draw(0, sphere_data.index_count, 1)
     end
 
-    -- Draw light indicator (small bright cube)
-    local light_model = glm.translate(light_pos) * glm.scale(glm.vec3(0.2, 0.2, 0.2))
+    -- Draw light indicator (small bright sphere)
+    local light_model = glm.translate(light_pos) * glm.scale(glm.vec3(0.3, 0.3, 0.3))
     local light_mvp = proj * view * light_model
 
     local uniforms = light_mvp:pack() .. light_model:pack() .. util.pack_floats({
         light_pos.x, light_pos.y, light_pos.z, 1,
-        1, 1, 1, 1,  -- light color (ignored for emissive)
-        5, 5, 5, 1,  -- high ambient = emissive look
+        1, 1, 1, 1,
+        5, 5, 5, 1,  -- high ambient = emissive
         camera_pos.x, camera_pos.y, camera_pos.z, 1,
-        1, 0.9, 0.7, 1,  -- yellow diffuse
-        0, 0, 0, 1,  -- no specular
+        1, 0.9, 0.7, 1,
+        0, 0, 0, 1,
     })
 
     gfx.apply_uniforms(0, gfx.Range(uniforms))
-    gfx.draw(0, mesh_data.index_count, 1)
+    gfx.draw(0, sphere_data.index_count, 1)
 
     gfx.end_pass()
     gfx.commit()

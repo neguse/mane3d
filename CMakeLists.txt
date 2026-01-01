@@ -301,6 +301,9 @@ if(MANE3D_BUILD_EXAMPLE)
             ${CMAKE_CURRENT_SOURCE_DIR}/examples/lighting.lua
             $<TARGET_FILE_DIR:mane3d-example>/lighting.lua
             COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/model.lua
+            $<TARGET_FILE_DIR:mane3d-example>/model.lua
+            COMMAND ${CMAKE_COMMAND} -E copy
             ${CMAKE_CURRENT_SOURCE_DIR}/lib/glm.lua
             $<TARGET_FILE_DIR:mane3d-example>/glm.lua
         )
@@ -322,6 +325,9 @@ if(MANE3D_BUILD_EXAMPLE)
             COMMAND ${CMAKE_COMMAND} -E copy
             ${CMAKE_CURRENT_SOURCE_DIR}/examples/lighting.lua
             $<TARGET_FILE_DIR:mane3d-example>/lighting.lua
+            COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/model.lua
+            $<TARGET_FILE_DIR:mane3d-example>/model.lua
             COMMAND ${CMAKE_COMMAND} -E copy
             ${CMAKE_CURRENT_SOURCE_DIR}/lib/glm.lua
             $<TARGET_FILE_DIR:mane3d-example>/glm.lua

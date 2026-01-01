@@ -247,27 +247,32 @@ static void cleanup(void)
 static void event(const sapp_event *ev)
 {
     lua_getglobal(L, "event");
-    if (lua_isfunction(L, -1))
+    if (!lua_isfunction(L, -1))
     {
-        /* Push event as userdata with generated binding */
-        sapp_event *ud = (sapp_event *)lua_newuserdatauv(L, sizeof(sapp_event), 0);
-        *ud = *ev;
-        luaL_setmetatable(L, "sokol.Event");
-
-        if (lua_pcall(L, 1, 0, 0) != LUA_OK)
-        {
-            fprintf(stderr, "Lua error in event: %s\n", lua_tostring(L, -1));
-            lua_pop(L, 1);
+        static int warn_count = 0;
+        if (warn_count++ < 1) {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "event is not a function, type=%d", lua_type(L, -1));
+            slog_func("event", 2, 0, msg, 0, "", 0);
         }
+        lua_pop(L, 1);
+        return;
     }
-    else
+    /* Push event as userdata with generated binding */
+    sapp_event *ud = (sapp_event *)lua_newuserdatauv(L, sizeof(sapp_event), 0);
+    *ud = *ev;
+    luaL_setmetatable(L, "sokol.Event");
+
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK)
     {
+        slog_func("event", 0, 0, lua_tostring(L, -1), 0, "pcall", 0);
         lua_pop(L, 1);
     }
 }
 
 sapp_desc sokol_main(int argc, char *argv[])
 {
+    slog_func("main", 3, 0, "=== sokol_main fresh build ===", 0, "", 0);
     L = luaL_newstate();
     luaL_openlibs(L);
 
@@ -308,7 +313,7 @@ sapp_desc sokol_main(int argc, char *argv[])
     /* Load script */
     const char *script = (argc > 1) ? argv[1] : "main.lua";
     strncpy(g_script_path, script, sizeof(g_script_path) - 1);
-    slog_func("lua", 1, 0, "Loading script", 0, script, 0);
+    slog_func("lua", 3, 0, "Loading script", 0, script, 0);
 #ifdef __EMSCRIPTEN__
     if (fetch_and_dostring(L, script) != LUA_OK)
 #else
@@ -316,7 +321,9 @@ sapp_desc sokol_main(int argc, char *argv[])
     if (luaL_dofile(L, script) != LUA_OK)
 #endif
     {
-        slog_func("lua", 0, 0, lua_tostring(L, -1), 0, script, 0);
+        const char *err = lua_tostring(L, -1);
+        fprintf(stderr, "Lua error: %s\n", err ? err : "(no message)");
+        slog_func("lua", 0, 0, err ? err : "(no message)", 0, script, 0);
         lua_pop(L, 1);
     }
 

@@ -43,8 +43,9 @@ end
 -- @param program_name string: program name in shader
 -- @param uniform_blocks table|nil: optional uniform block descriptors
 -- @param attrs table|nil: optional vertex attribute semantics for D3D11
+-- @param texture_sampler_pairs table|nil: optional texture-sampler pair descriptors
 -- @return shader handle or nil on failure
-function M.compile_shader(source, program_name, uniform_blocks, attrs)
+function M.compile_shader(source, program_name, uniform_blocks, attrs, texture_sampler_pairs)
     local shdc = require("shdc")
     local lang = M.get_shader_lang()
 
@@ -88,6 +89,11 @@ function M.compile_shader(source, program_name, uniform_blocks, attrs)
         desc_table.uniform_blocks = uniform_blocks
     end
 
+    -- Add texture-sampler pairs if specified
+    if texture_sampler_pairs then
+        desc_table.texture_sampler_pairs = texture_sampler_pairs
+    end
+
     -- D3D11 needs attribute semantics
     if backend == gfx.Backend.D3D11 then
         desc_table.attrs = attrs or {
@@ -105,9 +111,78 @@ function M.compile_shader(source, program_name, uniform_blocks, attrs)
     return shd
 end
 
--- Helper to pack vertex data as floats
+-- Compile shader with full descriptor control
+-- @param source string: shader source code
+-- @param program_name string: program name in shader
+-- @param shader_desc table: full shader descriptor (uniform_blocks, views, samplers, texture_sampler_pairs, attrs)
+-- @return shader handle or nil on failure
+function M.compile_shader_full(source, program_name, shader_desc)
+    local shdc = require("shdc")
+    local lang = M.get_shader_lang()
+
+    M.info("Compiling shader: " .. program_name .. " for " .. lang)
+
+    local result = shdc.compile(source, program_name, lang)
+    if not result.success then
+        M.error("Shader compile error: " .. (result.error or "unknown"))
+        return nil
+    end
+
+    M.info("Shader compiled: vs=" .. tostring(result.vs_source and #result.vs_source or "nil") .. " fs=" .. tostring(result.fs_source and #result.fs_source or "nil"))
+
+    local backend = gfx.query_backend()
+    local is_source = (backend == gfx.Backend.GLCORE or backend == gfx.Backend.GLES3 or backend == gfx.Backend.WGPU)
+
+    local vs_data, fs_data
+    if is_source then
+        vs_data = result.vs_source
+        fs_data = result.fs_source
+    else
+        vs_data = result.vs_bytecode or result.vs_source
+        fs_data = result.fs_bytecode or result.fs_source
+    end
+
+    if not vs_data or not fs_data then
+        M.error("Missing shader data")
+        return nil
+    end
+
+    local desc_table = {
+        vertex_func = is_source and { source = vs_data } or { bytecode = vs_data },
+        fragment_func = is_source and { source = fs_data } or { bytecode = fs_data },
+    }
+
+    -- Copy all fields from shader_desc
+    if shader_desc.uniform_blocks then desc_table.uniform_blocks = shader_desc.uniform_blocks end
+    if shader_desc.views then desc_table.views = shader_desc.views end
+    if shader_desc.samplers then desc_table.samplers = shader_desc.samplers end
+    if shader_desc.texture_sampler_pairs then desc_table.texture_sampler_pairs = shader_desc.texture_sampler_pairs end
+    if backend == gfx.Backend.D3D11 and shader_desc.attrs then
+        desc_table.attrs = shader_desc.attrs
+    end
+
+    local shd = gfx.make_shader(gfx.ShaderDesc(desc_table))
+    if gfx.query_shader_state(shd) ~= gfx.ResourceState.VALID then
+        M.error("Failed to create shader")
+        return nil
+    end
+
+    return shd
+end
+
+-- Helper to pack vertex data as floats (handles large arrays)
 function M.pack_floats(floats)
-    return string.pack(string.rep("f", #floats), table.unpack(floats))
+    local CHUNK_SIZE = 200  -- Lua unpack limit is around 200-1000
+    local result = {}
+    for i = 1, #floats, CHUNK_SIZE do
+        local chunk_end = math.min(i + CHUNK_SIZE - 1, #floats)
+        local chunk = {}
+        for j = i, chunk_end do
+            chunk[#chunk + 1] = floats[j]
+        end
+        result[#result + 1] = string.pack(string.rep("f", #chunk), table.unpack(chunk))
+    end
+    return table.concat(result)
 end
 
 -- Load raw image data from file (handles WASM fetch)
@@ -132,7 +207,7 @@ end
 -- Load texture from file
 -- @param filename string: path to image file (PNG, JPG, etc.)
 -- @param opts table|nil: optional settings { filter_min, filter_mag, wrap_u, wrap_v }
--- @return sg_image, sg_sampler or nil, error_message on failure
+-- @return sg_view, sg_sampler or nil, error_message on failure
 function M.load_texture(filename, opts)
     opts = opts or {}
 
@@ -155,6 +230,11 @@ function M.load_texture(filename, opts)
         return nil, "Failed to create image"
     end
 
+    -- Create view from image (required for binding)
+    local view = gfx.make_view(gfx.ViewDesc({
+        texture = { image = img },
+    }))
+
     -- Create sampler
     local smp = gfx.make_sampler(gfx.SamplerDesc({
         min_filter = opts.filter_min or gfx.Filter.LINEAR,
@@ -163,7 +243,7 @@ function M.load_texture(filename, opts)
         wrap_v = opts.wrap_v or gfx.Wrap.REPEAT,
     }))
 
-    return img, smp
+    return view, smp
 end
 
 return M

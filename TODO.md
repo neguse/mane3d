@@ -47,10 +47,10 @@ Step-by-step port to mane3d.
 - [x] 7.  Texturing (stb_image + util.load_texture)
 - [x] 8.  Lighting (examples/lighting.lua - Phong/Blinn-Phong) ✓ working
 - [x] 9.  Blinn-Phong (included in lighting.lua) ✓ working
-- [ ] 10. Fresnel Factor
-- [ ] 11. Rim Lighting
-- [ ] 12. Cel Shading
-- [ ] 13. Normal Mapping
+- [x] 10. Fresnel Factor (Schlick's approximation on specular)
+- [x] 11. Rim Lighting (edge glow effect)
+- [x] 12. Cel Shading (toon bands + hard specular)
+- [x] 13. Normal Mapping (examples/model.lua + mill-scene)
 - [ ] 14. Deferred Rendering
 - [ ] 15. Fog
 - [ ] 16. Blur
