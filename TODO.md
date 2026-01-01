@@ -28,7 +28,7 @@
 ### Other
 
 - [ ] Fennel + sequence macros
-- [ ] Hot reload
+- [ ] Hot reload (file watcher in main.c, or R key to reload)
 
 ## 3D Game Shaders Tutorial (lettier/3d-game-shaders-for-beginners)
 
@@ -37,16 +37,16 @@ Step-by-step port to mane3d.
 ### Setup
 
 - [x] Assets: egg + textures in `assets/3d-shaders/` (gitignored)
-- [ ] egg2lua.py: Convert EGG to Lua table format
+- [x] egg2lua.py: Convert EGG to Lua table format (scripts/egg2lua.py)
 
 ### Tutorial Sections
 
-- [ ] 4.  Reference Frames (theory)
-- [ ] 5.  GLSL (sokol-shdc compatibility)
-- [ ] 6.  Render To Texture
-- [ ] 7.  Texturing
-- [ ] 8.  Lighting
-- [ ] 9.  Blinn-Phong
+- [x] 4.  Reference Frames (mat4/mat3 inverse, transpose, normalMatrix in glm.lua)
+- [x] 5.  GLSL (sokol-shdc compatibility - covered)
+- [x] 6.  Render To Texture (conceptual understanding)
+- [x] 7.  Texturing (stb_image + util.load_texture)
+- [x] 8.  Lighting (examples/lighting.lua - Phong/Blinn-Phong) ✓ working
+- [x] 9.  Blinn-Phong (included in lighting.lua) ✓ working
 - [ ] 10. Fresnel Factor
 - [ ] 11. Rim Lighting
 - [ ] 12. Cel Shading

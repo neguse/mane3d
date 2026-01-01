@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -36,6 +37,51 @@ extern void shdc_shutdown(void);
 #endif
 
 static lua_State *L = NULL;
+static char g_script_path[512] = {0};
+static time_t g_script_mtime = 0;
+
+static void call_lua(const char *func);
+
+static time_t get_file_mtime(const char *path)
+{
+    struct stat st;
+    if (stat(path, &st) == 0)
+    {
+        return st.st_mtime;
+    }
+    return 0;
+}
+
+static void reload_script(void)
+{
+    slog_func("lua", 3, 0, "Reloading script...", 0, g_script_path, 0);
+
+    /* Call cleanup */
+    call_lua("cleanup");
+
+    /* Clear globals */
+    lua_pushnil(L);
+    lua_setglobal(L, "init");
+    lua_pushnil(L);
+    lua_setglobal(L, "frame");
+    lua_pushnil(L);
+    lua_setglobal(L, "cleanup");
+    lua_pushnil(L);
+    lua_setglobal(L, "event");
+
+    /* Reload script */
+    if (luaL_dofile(L, g_script_path) != LUA_OK)
+    {
+        slog_func("lua", 0, 0, lua_tostring(L, -1), 0, g_script_path, 0);
+        lua_pop(L, 1);
+        return;
+    }
+
+    g_script_mtime = get_file_mtime(g_script_path);
+
+    /* Call init */
+    call_lua("init");
+}
 
 #ifdef __EMSCRIPTEN__
 /* Fetch file synchronously using XHR */
@@ -176,6 +222,14 @@ static void init(void)
 
 static void frame(void)
 {
+#ifndef __EMSCRIPTEN__
+    /* Hot reload: check if script was modified */
+    time_t mtime = get_file_mtime(g_script_path);
+    if (mtime != g_script_mtime && mtime != 0)
+    {
+        reload_script();
+    }
+#endif
     call_lua("frame");
 }
 
@@ -253,10 +307,12 @@ sapp_desc sokol_main(int argc, char *argv[])
 
     /* Load script */
     const char *script = (argc > 1) ? argv[1] : "main.lua";
+    strncpy(g_script_path, script, sizeof(g_script_path) - 1);
     slog_func("lua", 1, 0, "Loading script", 0, script, 0);
 #ifdef __EMSCRIPTEN__
     if (fetch_and_dostring(L, script) != LUA_OK)
 #else
+    g_script_mtime = get_file_mtime(script);
     if (luaL_dofile(L, script) != LUA_OK)
 #endif
     {
