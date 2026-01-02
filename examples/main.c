@@ -185,6 +185,12 @@ static int fetch_searcher(lua_State *L)
     char *data = fetch_file(url, &len);
     if (!data)
     {
+        /* Try lib directory (sibling to script dir) */
+        snprintf(url, sizeof(url), "%s/../lib/%s.lua", g_script_dir, name);
+        data = fetch_file(url, &len);
+    }
+    if (!data)
+    {
         /* Fallback to root */
         snprintf(url, sizeof(url), "%s.lua", name);
         data = fetch_file(url, &len);
@@ -380,13 +386,13 @@ sapp_desc sokol_main(int argc, char *argv[])
     lua_setglobal(L, "SCRIPT_DIR");
 
 #ifndef __EMSCRIPTEN__
-    /* Add script directory to package.path */
+    /* Add script directory and lib directory to package.path */
     {
         lua_getglobal(L, "package");
         lua_getfield(L, -1, "path");
         const char *old_path = lua_tostring(L, -1);
         char new_path[2048];
-        snprintf(new_path, sizeof(new_path), "%s/?.lua;%s", g_script_dir, old_path ? old_path : "");
+        snprintf(new_path, sizeof(new_path), "%s/?.lua;%s/../lib/?.lua;%s", g_script_dir, g_script_dir, old_path ? old_path : "");
         lua_pop(L, 1);
         lua_pushstring(L, new_path);
         lua_setfield(L, -2, "path");
