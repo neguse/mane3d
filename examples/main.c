@@ -86,6 +86,15 @@ static time_t get_file_mtime(const char *path)
     return 0;
 }
 
+/* Lua binding for get_file_mtime */
+static int l_get_mtime(lua_State *L)
+{
+    const char *path = luaL_checkstring(L, 1);
+    time_t mtime = get_file_mtime(path);
+    lua_pushinteger(L, (lua_Integer)mtime);
+    return 1;
+}
+
 static void reload_script(void)
 {
     slog_func("lua", 3, 0, "Reloading script...", 0, g_script_path, 0);
@@ -384,6 +393,10 @@ sapp_desc sokol_main(int argc, char *argv[])
     /* Export SCRIPT_DIR to Lua */
     lua_pushstring(L, g_script_dir);
     lua_setglobal(L, "SCRIPT_DIR");
+
+    /* Export get_mtime to Lua for hot reload */
+    lua_pushcfunction(L, l_get_mtime);
+    lua_setglobal(L, "get_mtime");
 
 #ifndef __EMSCRIPTEN__
     /* Add script directory and lib directory to package.path */
