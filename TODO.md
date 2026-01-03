@@ -28,7 +28,9 @@
 ### Other
 
 - [ ] Fennel + sequence macros
-- [ ] Hot reload (file watcher in main.c, or R key to reload)
+- [x] Hot reload (lib/hotreload.lua + lume.hotswap)
+- [x] Render pipeline with error recovery (lib/render_pipeline.lua)
+- [x] GC-safe GPU resource wrappers (lib/gpu.lua)
 
 ## 3D Game Shaders Tutorial (lettier/3d-game-shaders-for-beginners)
 
