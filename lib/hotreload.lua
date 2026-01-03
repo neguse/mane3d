@@ -49,6 +49,10 @@ function require(modname)
     return mod
 end
 
+-- Optional notify module (may not be loaded)
+local notify = nil
+pcall(function() notify = require("lib.notify") end)
+
 -- Check for changes and reload
 function M.update()
     if not M.enabled then return end
@@ -63,15 +67,28 @@ function M.update()
             -- Find module name for this file
             for modname, path in pairs(mod_to_path) do
                 if path == filepath then
-                    print(string.format("[hotreload] Reloading: %s", modname))
+                    -- Get short name for display
+                    local short = modname:match("[^.]+$") or modname
+
                     local mod, err = lume.hotswap(modname)
                     if err then
                         print(string.format("[hotreload] Error: %s", err))
-                    elseif mod and type(mod.on_reload) == "function" then
+                        if notify then notify.error("[reload] " .. short .. " ERROR") end
+                    else
                         -- Call reload hook if module defines one
-                        local ok, hook_err = pcall(mod.on_reload)
-                        if not ok then
-                            print(string.format("[hotreload] on_reload error: %s", hook_err))
+                        local hook_ok = true
+                        if mod and type(mod.on_reload) == "function" then
+                            local ok, hook_err = pcall(mod.on_reload)
+                            if not ok then
+                                print(string.format("[hotreload] on_reload error: %s", hook_err))
+                                hook_ok = false
+                            end
+                        end
+                        if hook_ok then
+                            print(string.format("[hotreload] Reloaded: %s", modname))
+                            if notify then notify.ok("[reload] " .. short .. " OK") end
+                        else
+                            if notify then notify.warn("[reload] " .. short .. " hook failed") end
                         end
                     end
                     break

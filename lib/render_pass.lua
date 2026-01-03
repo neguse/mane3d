@@ -3,6 +3,10 @@
 local gfx = require("sokol.gfx")
 local gpu = require("lib.gpu")
 
+-- Optional notify module
+local notify = nil
+pcall(function() notify = require("lib.notify") end)
+
 local M = {}
 
 ---Setup common resource management on a pass module
@@ -21,12 +25,16 @@ function M.setup(pass, opts)
         pass._compile_attempted = true
 
         local shader = gpu.shader(pass.shader_source, opts.shader_name, pass.shader_desc)
-        if not shader then return false end
+        if not shader then
+            if notify then notify.error("[shader] " .. pass.name .. " FAILED") end
+            return false
+        end
 
         local pip_desc = opts.pipeline_desc(shader.handle)
         local pipeline = gpu.pipeline(pip_desc)
 
         pass.resources = { shader = shader, pipeline = pipeline }
+        if notify then notify.ok("[shader] " .. pass.name .. " OK") end
         return true
     end
 

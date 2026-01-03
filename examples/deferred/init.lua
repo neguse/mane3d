@@ -10,6 +10,7 @@ local glm = require("lib.glm")
 local imgui = require("imgui")
 local gpu = require("lib.gpu")
 local pipeline = require("lib.render_pipeline")
+local notify = require("lib.notify")
 
 -- Pipeline modules
 local ctx = require("examples.deferred.ctx")
@@ -55,6 +56,9 @@ local imgui_pass = {
         imgui.End()
 
         imgui.render()
+
+        -- Draw toast notifications
+        notify.draw(app.width(), app.height())
     end,
 }
 
@@ -240,6 +244,7 @@ end
 function init()
     util.info("Deferred Rendering Pipeline init")
     imgui.setup()
+    notify.setup()
 
     ctx.init()
 
@@ -286,6 +291,7 @@ end
 
 function cleanup()
     imgui.shutdown()
+    notify.shutdown()
 
     -- Destroy pipeline and passes
     pipeline.destroy()
