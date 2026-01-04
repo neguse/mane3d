@@ -67,9 +67,11 @@ local function load_model()
 
     -- Try to load precompiled bytecode if newer than source
     local model
-    local base_path = "examples/mill-scene"
+    local model_name = "mill-scene"
+    local base_path = "assets/" .. model_name .. "/" .. model_name
     local lua_path = base_path .. ".lua"
     local luac_path = base_path .. ".luac"
+    local texture_base = "assets/" .. model_name .. "/tex/"
     local lua_mtime = get_mtime(lua_path)
     local luac_mtime = get_mtime(luac_path)
 
@@ -179,7 +181,6 @@ local function load_model()
         -- Load texture
         t1 = os.clock()
         local tex_view, tex_smp
-        local texture_base = "assets/3d-shaders/textures/"
         if mesh_data.textures and #mesh_data.textures > 0 then
             local tex_name = mesh_data.textures[1]
             local tex_info = model.textures[tex_name]

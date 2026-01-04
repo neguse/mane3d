@@ -16,3 +16,6 @@
 [submodule "deps/lume"]
 	path = deps/lume
 	url = https://github.com/rxi/lume.git
+[submodule "deps/3d-game-shaders-for-beginners"]
+	path = deps/3d-game-shaders-for-beginners
+	url = https://github.com/lettier/3d-game-shaders-for-beginners.git
