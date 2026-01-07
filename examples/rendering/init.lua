@@ -60,6 +60,9 @@ local function update_ui()
 
         imgui.Text(string.format("Active Lights: %d / %d", #light.sources, light.NUMBER_OF_LIGHTS))
 
+        -- Blinn-Phong toggle
+        light.blinn_phong_enabled = imgui.Checkbox("Blinn-Phong", light.blinn_phong_enabled)
+
         -- Animation controls
         if imgui.TreeNode("Day/Night Cycle") then
             local anim_changed

@@ -58,6 +58,7 @@ layout(binding=0) uniform fs_params {
     int num_lights;
     float gamma;
     float gamma_rec;                        // 1/gamma
+    int blinn_phong_enabled;                // 1 = Blinn-Phong, 0 = Phong
 };
 
 // Helper to access light fields
@@ -140,9 +141,12 @@ void main() {
             0.0, 1.0
         );
 
-        // Specular: Blinn-Phong (from base.frag line 199-227)
+        // Specular: Blinn-Phong or Phong (from base.frag line 199-227)
         vec3 halfway_direction = normalize(unit_light_direction + eye_direction);
-        float specular_intensity = clamp(dot(normal, halfway_direction), 0.0, 1.0);
+        vec3 reflected_direction = normalize(-reflect(unit_light_direction, normal));
+        float specular_intensity = (blinn_phong_enabled == 1)
+            ? clamp(dot(normal, halfway_direction), 0.0, 1.0)
+            : clamp(dot(eye_direction, reflected_direction), 0.0, 1.0);
 
         // Use specular map for shininess and material specular intensity
         vec3 specular_temp = light_specular * pow(specular_intensity, shininess);

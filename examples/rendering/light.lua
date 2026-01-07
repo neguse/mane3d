@@ -238,8 +238,11 @@ end
 -- Gamma value
 M.gamma = 2.2
 
+-- Blinn-Phong toggle (true = Blinn-Phong, false = Phong)
+M.blinn_phong_enabled = true
+
 ---Pack all uniforms for lighting shader
----Layout: Light[NUMBER_OF_LIGHTS] (512 bytes) + light_model_ambient (16 bytes) + num_lights (4) + gamma (4) + gamma_rec (4) + pad (4)
+---Layout: Light[NUMBER_OF_LIGHTS] (512 bytes) + light_model_ambient (16 bytes) + num_lights (4) + gamma (4) + gamma_rec (4) + blinn_phong (4)
 ---Total: 544 bytes
 ---@param view_matrix mat4
 ---@return string
@@ -262,9 +265,9 @@ function M.pack_uniforms(view_matrix)
         M.light_model_ambient.x, M.light_model_ambient.y, M.light_model_ambient.z, M.light_model_ambient.w
     )
 
-    -- num_lights (int), gamma, gamma_rec, pad
-    parts[M.NUMBER_OF_LIGHTS + 2] = string.pack("ifff",
-        #M.sources, M.gamma, 1.0 / M.gamma, 0
+    -- num_lights (int), gamma, gamma_rec, blinn_phong (int as float for alignment)
+    parts[M.NUMBER_OF_LIGHTS + 2] = string.pack("iffi",
+        #M.sources, M.gamma, 1.0 / M.gamma, M.blinn_phong_enabled and 1 or 0
     )
 
     return table.concat(parts)
