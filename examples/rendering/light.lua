@@ -241,9 +241,13 @@ M.gamma = 2.2
 -- Blinn-Phong toggle (true = Blinn-Phong, false = Phong)
 M.blinn_phong_enabled = true
 
+-- Fresnel effect toggle and max power
+M.fresnel_enabled = true
+M.max_fresnel_power = 5.0  -- specular_map.b * this value
+
 ---Pack all uniforms for lighting shader
----Layout: Light[NUMBER_OF_LIGHTS] (512 bytes) + light_model_ambient (16 bytes) + num_lights (4) + gamma (4) + gamma_rec (4) + blinn_phong (4)
----Total: 544 bytes
+---Layout: Light[NUMBER_OF_LIGHTS] (512 bytes) + light_model_ambient (16 bytes) + params (16 bytes) + flags (16 bytes)
+---Total: 560 bytes
 ---@param view_matrix mat4
 ---@return string
 function M.pack_uniforms(view_matrix)
@@ -265,9 +269,17 @@ function M.pack_uniforms(view_matrix)
         M.light_model_ambient.x, M.light_model_ambient.y, M.light_model_ambient.z, M.light_model_ambient.w
     )
 
-    -- num_lights (int), gamma, gamma_rec, blinn_phong (int as float for alignment)
-    parts[M.NUMBER_OF_LIGHTS + 2] = string.pack("iffi",
-        #M.sources, M.gamma, 1.0 / M.gamma, M.blinn_phong_enabled and 1 or 0
+    -- num_lights (int), gamma, gamma_rec, pad
+    parts[M.NUMBER_OF_LIGHTS + 2] = string.pack("ifff",
+        #M.sources, M.gamma, 1.0 / M.gamma, 0
+    )
+
+    -- blinn_phong (int), fresnel (int), max_fresnel_power (float), pad
+    parts[M.NUMBER_OF_LIGHTS + 3] = string.pack("iifi",
+        M.blinn_phong_enabled and 1 or 0,
+        M.fresnel_enabled and 1 or 0,
+        M.max_fresnel_power,
+        0
     )
 
     return table.concat(parts)
@@ -276,8 +288,8 @@ end
 ---Get uniform size in bytes
 ---@return integer
 function M.uniform_size()
-    -- Light[4] * 128 + ambient(16) + (num_lights + gamma + gamma_rec + pad)(16) = 544
-    return M.NUMBER_OF_LIGHTS * 128 + 16 + 16
+    -- Light[4] * 128 + ambient(16) + params(16) + flags(16) = 560
+    return M.NUMBER_OF_LIGHTS * 128 + 16 + 16 + 16
 end
 
 ---Calculate sun direction from pitch angle (like tutorial's pivot rotation)

@@ -62,6 +62,12 @@ local function update_ui()
 
         -- Blinn-Phong toggle
         light.blinn_phong_enabled = imgui.Checkbox("Blinn-Phong", light.blinn_phong_enabled)
+        light.fresnel_enabled = imgui.Checkbox("Fresnel", light.fresnel_enabled)
+        if light.fresnel_enabled then
+            imgui.SameLine()
+            local fp, fp_changed = imgui.SliderFloat("Max Power", light.max_fresnel_power, 0.1, 10.0)
+            if fp_changed then light.max_fresnel_power = fp end
+        end
 
         -- Animation controls
         if imgui.TreeNode("Day/Night Cycle") then

@@ -58,7 +58,11 @@ layout(binding=0) uniform fs_params {
     int num_lights;
     float gamma;
     float gamma_rec;                        // 1/gamma
+    float pad0;
     int blinn_phong_enabled;                // 1 = Blinn-Phong, 0 = Phong
+    int fresnel_enabled;                    // 1 = Fresnel, 0 = no Fresnel
+    float max_fresnel_power;                // specular_map.b * this value
+    int pad1;
 };
 
 // Helper to access light fields
@@ -93,7 +97,6 @@ void main() {
     // Specular map channels (from base.frag):
     // R = specular intensity
     // G = shininess factor (0-1, multiplied by MAX_SHININESS)
-    // B = fresnel power (not used yet)
     float material_specular = specular_map.r;
     float shininess = max(specular_map.g * MAX_SHININESS, 1.0);
 
@@ -148,9 +151,21 @@ void main() {
             ? clamp(dot(normal, halfway_direction), 0.0, 1.0)
             : clamp(dot(eye_direction, reflected_direction), 0.0, 1.0);
 
+        // Fresnel effect (from base.frag line 215-221)
+        float fresnel_mat_specular = material_specular;
+        if (fresnel_enabled == 1) {
+            float fresnel_dot = (blinn_phong_enabled == 1)
+                ? dot(halfway_direction, eye_direction)
+                : dot(normal, eye_direction);
+            float fresnel_factor = max(fresnel_dot, 0.0);
+            fresnel_factor = 1.0 - fresnel_factor;
+            fresnel_factor = pow(fresnel_factor, specular_map.b * max_fresnel_power);
+            fresnel_mat_specular = mix(material_specular, 1.0, clamp(fresnel_factor, 0.0, 1.0));
+        }
+
         // Use specular map for shininess and material specular intensity
         vec3 specular_temp = light_specular * pow(specular_intensity, shininess);
-        specular_temp *= material_specular;
+        specular_temp *= fresnel_mat_specular;
         specular_temp = clamp(specular_temp, 0.0, 1.0);
 
         // Spotlight check (from base.frag line 229-239)
