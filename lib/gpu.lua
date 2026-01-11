@@ -2,13 +2,8 @@
 -- GPU resource wrappers with GC support
 local gfx = require("sokol.gfx")
 local slog = require("sokol.log")
-
--- Lazy-load util to break circular dependency (util requires gpu)
-local util
-local function get_util()
-    if not util then util = require("lib.util") end
-    return util
-end
+local log = require("lib.log")
+local shader = require("lib.shader")
 
 ---@class gpu
 local M = {}
@@ -100,10 +95,9 @@ end
 ---@param desc table Shader descriptor
 ---@return gpu.Shader?
 function M.shader(source, name, desc)
-    local u = get_util()
-    local handle = u.compile_shader_full(source, name, desc)
+    local handle = shader.compile_full(source, name, desc)
     if not handle then
-        u.error("Failed to compile shader: " .. name)
+        log.error("Failed to compile shader: " .. name)
         return nil
     end
     return wrap(handle, gfx.destroy_shader) --[[@as gpu.Shader]]

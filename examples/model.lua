@@ -3,6 +3,9 @@
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
+local log = require("lib.log")
+local shaderMod = require("lib.shader")
+local texture = require("lib.texture")
 local util = require("lib.util")
 local glm = require("lib.glm")
 
@@ -203,7 +206,7 @@ local function load_texture_cached(path)
     end
 
     local full_path = "textures/" .. path
-    local img, view, smp = util.load_texture(full_path)
+    local img, view, smp = texture.load(full_path)
     if img and view and smp then
         ---@cast view gpu.View
         ---@cast smp gpu.Sampler
@@ -241,7 +244,7 @@ local default_diffuse_view, default_diffuse_smp
 local default_normal_view, default_normal_smp
 
 function init()
-    util.info("Model loading example init")
+    log.info("Model loading example init")
 
     -- Create default textures
     default_diffuse_view, default_diffuse_smp = create_default_texture(0.8, 0.8, 0.8)
@@ -284,10 +287,10 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 3 },
         },
     }
-    shader = util.compile_shader_full(shader_source, "model", shader_desc)
+    shader = shaderMod.compile_full(shader_source, "model", shader_desc)
 
     if not shader then
-        util.error("Failed to compile shader")
+        log.error("Failed to compile shader")
         return
     end
 
@@ -310,16 +313,16 @@ function init()
     }))
 
     -- Load model
-    util.info("Loading mill-scene...")
+    log.info("Loading mill-scene...")
     local model_path = "mill-scene.lua"  -- same directory as exe
     local model_func, err = loadfile(model_path)
     if not model_func then
-        util.error("Failed to load model: " .. tostring(err))
+        log.error("Failed to load model: " .. tostring(err))
         return
     end
 
     local scene = model_func()
-    util.info("Model loaded, processing meshes...")
+    log.info("Model loaded, processing meshes...")
 
     -- Process each mesh
     local mesh_count = 0
@@ -377,15 +380,15 @@ function init()
         end
     end
 
-    util.info("Loaded " .. mesh_count .. " meshes")
-    util.info("init() complete - events should work now")
+    log.info("Loaded " .. mesh_count .. " meshes")
+    log.info("init() complete - events should work now")
 end
 
 local frame_count = 0
 function frame()
     frame_count = frame_count + 1
     if frame_count == 1 then
-        util.info("First frame!")
+        log.info("First frame!")
     end
     t = t + 1/60
 
@@ -464,13 +467,13 @@ end
 local event_logged = false
 function event(ev)
     if not event_logged then
-        util.info("Lua event() called!")
+        log.info("Lua event() called!")
         event_logged = true
     end
     local evtype = ev.type
     if evtype == app.EventType.KEY_DOWN then
         local key = ev.key_code
-        util.info("KEY_DOWN: " .. tostring(key))
+        log.info("KEY_DOWN: " .. tostring(key))
         if key == app.Keycode.ESCAPE then
             mouse_captured = false
             app.show_mouse(true)
@@ -519,5 +522,5 @@ function cleanup()
     end
     textures_cache = {}
 
-    util.info("Model cleanup")
+    log.info("Model cleanup")
 end

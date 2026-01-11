@@ -2,6 +2,8 @@
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
+local log = require("lib.log")
+local shader = require("lib.shader")
 local util = require("lib.util")
 local glm = require("lib.glm")
 
@@ -172,10 +174,10 @@ local function init_blocks()
 end
 
 function init()
-    util.info("3D Block Breaker starting...")
+    log.info("3D Block Breaker starting...")
 
     -- Compile shader with uniform block (2 mat4 + 1 vec4 = 144 bytes)
-    shader = util.compile_shader(shader_source, "breakout", {
+    shader = shader.compile(shader_source, "breakout", {
         {
             stage = gfx.ShaderStage.VERTEX,
             size = 144,
@@ -191,7 +193,7 @@ function init()
         { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
     })
     if not shader then
-        util.error("Shader compilation failed!")
+        log.error("Shader compilation failed!")
         return
     end
 
@@ -213,7 +215,7 @@ function init()
     }))
 
     if gfx.query_pipeline_state(pipeline) ~= gfx.ResourceState.VALID then
-        util.error("Pipeline creation failed!")
+        log.error("Pipeline creation failed!")
         return
     end
 
@@ -230,7 +232,7 @@ function init()
     }))
 
     init_blocks()
-    util.info(string.format("Game initialized with %d blocks", #blocks))
+    log.info(string.format("Game initialized with %d blocks", #blocks))
 end
 
 local function update_game(dt)
@@ -258,7 +260,7 @@ local function update_game(dt)
     -- Ball out of bounds (bottom)
     if ball_y < -FIELD_HEIGHT/2 then
         game_over = true
-        util.info("Game Over! Score: " .. score)
+        log.info("Game Over! Score: " .. score)
         return
     end
 
@@ -310,7 +312,7 @@ local function update_game(dt)
         if block.alive then all_dead = false break end
     end
     if all_dead then
-        util.info("You Win! Score: " .. score)
+        log.info("You Win! Score: " .. score)
         init_blocks()
         ball_x, ball_y = 0, -4
         ball_vx, ball_vy = 2.5, 3.5
@@ -429,7 +431,7 @@ function event(ev)
             ball_vx, ball_vy = 2.5, 3.5
             paddle_x = 0
             init_blocks()
-            util.info("Game reset!")
+            log.info("Game reset!")
         end
     elseif ev.type == app.EventType.KEY_UP then
         keys_down[ev.key_code] = false
