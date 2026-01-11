@@ -7,6 +7,12 @@ log() {
 
 log "Build started"
 
+# Install cmake
+log "Installing cmake..."
+sudo apt-get update -qq
+sudo apt-get install -y -qq cmake
+log "cmake installed"
+
 # Setup Emscripten SDK
 log "Cloning emsdk..."
 git clone https://github.com/emscripten-core/emsdk.git
@@ -21,9 +27,9 @@ log "Emscripten setup complete"
 
 # Build WASM
 log "Configuring WASM build..."
-cmake --preset wasm-release
+emcmake cmake -B build/wasm-release -DCMAKE_BUILD_TYPE=Release
 log "Building WASM..."
-cmake --build --preset wasm-release
+cmake --build build/wasm-release
 log "WASM build complete"
 
 # Build Playground (Vite)
