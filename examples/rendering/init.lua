@@ -303,7 +303,7 @@ local function load_model()
 
             local path = texture_base .. tex_info.path
             if not textures_cache[path] then
-                local img, view, smp = util.load_texture(path)
+                local img, view, smp = util.load_texture_bc7(path)
                 if img then
                     textures_cache[path] = { img = img, view = view, smp = smp }
                 end

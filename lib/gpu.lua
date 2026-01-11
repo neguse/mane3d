@@ -1,7 +1,14 @@
 -- lib/gpu.lua
 -- GPU resource wrappers with GC support
 local gfx = require("sokol.gfx")
-local util = require("lib.util")
+local slog = require("sokol.log")
+
+-- Lazy-load util to break circular dependency (util requires gpu)
+local util
+local function get_util()
+    if not util then util = require("lib.util") end
+    return util
+end
 
 ---@class gpu
 local M = {}
@@ -15,7 +22,7 @@ local gc_supported = (function()
     _ = nil  ---@diagnostic disable-line: cast-local-type
     collectgarbage("collect")
     if not test_flag.called then
-        util.warn("[gpu] Table __gc not supported - GPU resources may leak if not explicitly destroyed")
+        slog.func("lua", 2, 0, "[gpu] Table __gc not supported - GPU resources may leak if not explicitly destroyed", 0, "", nil)
     end
     return test_flag.called
 end)()
@@ -93,9 +100,10 @@ end
 ---@param desc table Shader descriptor
 ---@return gpu.Shader?
 function M.shader(source, name, desc)
-    local handle = util.compile_shader_full(source, name, desc)
+    local u = get_util()
+    local handle = u.compile_shader_full(source, name, desc)
     if not handle then
-        util.error("Failed to compile shader: " .. name)
+        u.error("Failed to compile shader: " .. name)
         return nil
     end
     return wrap(handle, gfx.destroy_shader) --[[@as gpu.Shader]]

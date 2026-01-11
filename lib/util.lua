@@ -2,6 +2,16 @@
 local gfx = require("sokol.gfx")
 local slog = require("sokol.log")
 local stm = require("sokol.time")
+local gpu = require("lib.gpu")
+local stb = require("stb.image")
+
+-- Optional bc7enc module
+local bc7enc_ok, bc7enc = pcall(require, "bc7enc")
+if not bc7enc_ok then bc7enc = nil end
+
+-- Optional shdc module (requires MANE3D_BUILD_SHDC=ON)
+local shdc_ok, shdc = pcall(require, "shdc")
+if not shdc_ok then shdc = nil end
 
 -- Initialize sokol_time (once)
 if not _G._stm_initialized then
@@ -100,7 +110,11 @@ end
 -- @return shader handle or nil on failure
 function M.compile_shader(source, program_name, uniform_blocks, attrs, texture_sampler_pairs)
     M.profile_begin("shader", program_name)
-    local shdc = require("shdc")
+    if not shdc then
+        M.error("shdc module not available (requires MANE3D_BUILD_SHDC=ON)")
+        M.profile_end("shader", program_name)
+        return nil
+    end
     local lang = M.get_shader_lang()
 
     M.info("Compiling shader: " .. program_name .. " for " .. lang)
@@ -175,7 +189,11 @@ end
 -- @return shader handle or nil on failure
 function M.compile_shader_full(source, program_name, shader_desc)
     M.profile_begin("shader", program_name)
-    local shdc = require("shdc")
+    if not shdc then
+        M.error("shdc module not available (requires MANE3D_BUILD_SHDC=ON)")
+        M.profile_end("shader", program_name)
+        return nil
+    end
     local lang = M.get_shader_lang()
 
     M.info("Compiling shader: " .. program_name .. " for " .. lang)
@@ -267,7 +285,6 @@ end
 -- @return width, height, channels, pixels or nil, error_message
 function M.load_image_data(filename)
     M.profile_begin("image_decode", filename)
-    local stb = require("stb.image")
     local resolved = M.resolve_path(filename)
 
     -- Check if running in WASM (fetch_file is defined in main.c for Emscripten)
@@ -296,7 +313,6 @@ end
 ---@return gpu.View|string view_or_error view on success, error message on failure
 ---@return gpu.Sampler? smp sampler on success
 function M.load_texture(filename, opts)
-    local gpu = require("lib.gpu")
     opts = opts or {}
 
     local w, h, ch, pixels = M.load_image_data(filename)
@@ -337,6 +353,137 @@ function M.load_texture(filename, opts)
     }))
 
     M.profile_end("gpu_upload", filename)
+    return img, view, smp
+end
+
+-- Get file modification time (returns nil if file doesn't exist)
+---@param path string file path
+---@return number|nil mtime modification time or nil
+local function get_mtime(path)
+    return stb.mtime(path)
+end
+
+-- Read entire file as binary
+---@param path string file path
+---@return string|nil data
+local function read_file(path)
+    local f = io.open(path, "rb")
+    if not f then return nil end
+    local data = f:read("*a")
+    f:close()
+    return data
+end
+
+-- Write binary data to file
+---@param path string file path
+---@param data string binary data
+---@return boolean success
+local function write_file(path, data)
+    local f = io.open(path, "wb")
+    if not f then return false end
+    f:write(data)
+    f:close()
+    return true
+end
+
+-- Load texture with BC7 compression support
+-- If .bc7 file exists, use it directly. Otherwise, load PNG and convert to BC7.
+---@param filename string path to image file (PNG, JPG, etc.)
+---@param opts? table optional settings { filter_min, filter_mag, wrap_u, wrap_v, srgb, rdo_quality }
+---@return gpu.Image? img image resource (keep reference to prevent GC)
+---@return gpu.View|string view_or_error view on success, error message on failure
+---@return gpu.Sampler? smp sampler on success
+function M.load_texture_bc7(filename, opts)
+    opts = opts or {}
+
+    -- If bc7enc not available, fall back to regular load_texture
+    if not bc7enc then
+        return M.load_texture(filename, opts)
+    end
+
+    -- Generate BC7 cache path
+    local bc7_path = filename:gsub("%.[^.]+$", ".bc7")
+    local resolved = M.resolve_path(filename)
+    local resolved_bc7 = M.resolve_path(bc7_path)
+
+    local w, h, compressed
+
+    -- Check timestamps: use BC7 cache only if it's newer than source
+    local src_mtime = get_mtime(resolved)
+    local bc7_mtime = get_mtime(resolved_bc7)
+    local use_cache = bc7_mtime and src_mtime and bc7_mtime >= src_mtime
+
+    -- Try to load existing BC7 file if cache is valid
+    if use_cache then
+        M.profile_begin("bc7_load", bc7_path)
+        local data = read_file(resolved_bc7)
+        if data and #data >= 8 then
+            -- BC7 file format: 4 bytes width, 4 bytes height, then compressed data
+            w, h = string.unpack("<I4I4", data)
+            compressed = data:sub(9)
+            M.info("Loaded BC7 cache: " .. bc7_path .. " (" .. w .. "x" .. h .. ")")
+        end
+        M.profile_end("bc7_load", bc7_path)
+    end
+
+    -- If no valid cache, load source and encode to BC7
+    if not compressed then
+        local ch, pixels
+        w, h, ch, pixels = M.load_image_data(filename)
+        if not w then
+            return nil, h --[[@as string]]
+        end
+        ---@cast h integer
+        ---@cast pixels string
+
+        M.profile_begin("bc7_encode", filename)
+        compressed = bc7enc.encode(pixels, w, h, {
+            quality = 5,
+            srgb = opts.srgb or false,
+            rdo_quality = opts.rdo_quality or 0,
+        })
+        M.profile_end("bc7_encode", filename)
+
+        if not compressed then
+            return nil, "BC7 encoding failed"
+        end
+
+        -- Save BC7 cache file
+        M.profile_begin("bc7_save", bc7_path)
+        local header = string.pack("<I4I4", w, h)
+        write_file(resolved_bc7, header .. compressed)
+        M.info("Saved BC7 cache: " .. bc7_path .. " (" .. w .. "x" .. h .. ")")
+        M.profile_end("bc7_save", bc7_path)
+    end
+
+    -- Upload BC7 to GPU
+    M.profile_begin("gpu_upload_bc7", filename)
+
+    local pixel_format = opts.srgb and gfx.PixelFormat.BC7_SRGBA or gfx.PixelFormat.BC7_RGBA
+    local img = gpu.image(gfx.ImageDesc({
+        width = w,
+        height = h,
+        pixel_format = pixel_format,
+        data = { mip_levels = { compressed } },
+    }))
+
+    if gfx.query_image_state(img.handle) ~= gfx.ResourceState.VALID then
+        M.profile_end("gpu_upload_bc7", filename)
+        return nil, "Failed to create BC7 image"
+    end
+
+    local view = gpu.view(gfx.ViewDesc({
+        texture = { image = img.handle },
+    }))
+
+    local smp = gpu.sampler(gfx.SamplerDesc({
+        min_filter = opts.filter_min or gfx.Filter.LINEAR,
+        mag_filter = opts.filter_mag or gfx.Filter.LINEAR,
+        wrap_u = opts.wrap_u or gfx.Wrap.REPEAT,
+        wrap_v = opts.wrap_v or gfx.Wrap.REPEAT,
+    }))
+
+    M.profile_end("gpu_upload_bc7", filename)
     return img, view, smp
 end
 

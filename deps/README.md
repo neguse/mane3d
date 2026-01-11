@@ -11,6 +11,7 @@ Third-party libraries used by Mane3D.
 | sokol-tools | MIT | Shader compiler (sokol-shdc) |
 | lume | MIT | Lua utilities |
 | imgui | MIT | Dear ImGui |
+| bc7enc_rdo | MIT/Public Domain | BC7 texture encoder with RDO |
 
 ## References
 

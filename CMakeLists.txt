@@ -379,6 +379,43 @@ if(MANE3D_BUILD_IMGUI)
     endif()
 endif()
 
+# BC7 encoder library (optional)
+option(MANE3D_BUILD_BC7ENC "Build BC7 encoder library" ON)
+if(MANE3D_BUILD_BC7ENC)
+    set(BC7ENC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/bc7enc_rdo)
+
+    add_library(bc7enc_lib STATIC
+        ${BC7ENC_DIR}/bc7enc.cpp
+        ${BC7ENC_DIR}/bc7decomp.cpp
+        ${BC7ENC_DIR}/bc7decomp_ref.cpp
+        ${BC7ENC_DIR}/ert.cpp
+        ${BC7ENC_DIR}/rdo_bc_encoder.cpp
+        ${BC7ENC_DIR}/rgbcx.cpp
+        ${BC7ENC_DIR}/utils.cpp
+        ${BC7ENC_DIR}/lodepng.cpp
+    )
+    target_include_directories(bc7enc_lib PUBLIC ${BC7ENC_DIR})
+    set_target_properties(bc7enc_lib PROPERTIES CXX_STANDARD 11)
+
+    # Enable OpenMP for parallel encoding
+    find_package(OpenMP)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(bc7enc_lib PUBLIC OpenMP::OpenMP_CXX)
+    endif()
+
+    # Suppress warnings in third-party code
+    if(MSVC)
+        target_compile_options(bc7enc_lib PRIVATE /W0)
+    else()
+        target_compile_options(bc7enc_lib PRIVATE -w)
+    endif()
+
+    # Add Lua bindings
+    target_sources(mane3d PRIVATE src/bc7enc_lua.cpp)
+    target_compile_definitions(mane3d PUBLIC MANE3D_HAS_BC7ENC)
+    target_link_libraries(mane3d PUBLIC bc7enc_lib)
+endif()
+
 # sokol-shdc library (optional)
 if(MANE3D_BUILD_SHDC)
     include(cmake/sokol-shdc.cmake)
