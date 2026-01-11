@@ -41,11 +41,15 @@ log "Activating emsdk..."
 ./emsdk activate latest
 source ./emsdk_env.sh
 cd ..
-log "Emscripten setup complete"
+# Add Emscripten's clang to PATH for code generation
+export PATH="$(pwd)/emsdk/upstream/bin:$PATH"
+log "Emscripten setup complete (clang: $(clang --version | head -1))"
 
 # Build WASM
 log "Configuring WASM build..."
-emcmake cmake -G Ninja -B build/wasm-release -DCMAKE_BUILD_TYPE=Release
+emcmake cmake -G Ninja -B build/wasm-release \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DMANE3D_BUILD_EXAMPLE=ON
 log "Building WASM..."
 cmake --build build/wasm-release
 log "WASM build complete"
