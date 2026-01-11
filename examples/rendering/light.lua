@@ -245,9 +245,15 @@ M.blinn_phong_enabled = true
 M.fresnel_enabled = true
 M.max_fresnel_power = 5.0  -- specular_map.b * this value
 
+-- Rim light toggle
+M.rim_light_enabled = true
+
+-- Debug mode (0=off, 1=fresnel, 2=normal, 3=specular)
+M.debug_mode = 0
+
 ---Pack all uniforms for lighting shader
----Layout: Light[NUMBER_OF_LIGHTS] (512 bytes) + light_model_ambient (16 bytes) + params (16 bytes) + flags (16 bytes)
----Total: 560 bytes
+---Layout: Light[NUMBER_OF_LIGHTS] (512 bytes) + light_model_ambient (16 bytes) + params (16 bytes) + flags (16 bytes) + debug (16 bytes)
+---Total: 576 bytes
 ---@param view_matrix mat4
 ---@return string
 function M.pack_uniforms(view_matrix)
@@ -274,12 +280,18 @@ function M.pack_uniforms(view_matrix)
         #M.sources, M.gamma, 1.0 / M.gamma, 0
     )
 
-    -- blinn_phong (int), fresnel (int), max_fresnel_power (float), pad
+    -- blinn_phong (int), fresnel (int), max_fresnel_power (float), rim_light (int)
     parts[M.NUMBER_OF_LIGHTS + 3] = string.pack("iifi",
         M.blinn_phong_enabled and 1 or 0,
         M.fresnel_enabled and 1 or 0,
         M.max_fresnel_power,
-        0
+        M.rim_light_enabled and 1 or 0
+    )
+
+    -- debug_mode (int), pad, pad, pad
+    parts[M.NUMBER_OF_LIGHTS + 4] = string.pack("iiii",
+        M.debug_mode,
+        0, 0, 0
     )
 
     return table.concat(parts)
@@ -288,8 +300,8 @@ end
 ---Get uniform size in bytes
 ---@return integer
 function M.uniform_size()
-    -- Light[4] * 128 + ambient(16) + params(16) + flags(16) = 560
-    return M.NUMBER_OF_LIGHTS * 128 + 16 + 16 + 16
+    -- Light[4] * 128 + ambient(16) + params(16) + flags(16) + debug(16) = 576
+    return M.NUMBER_OF_LIGHTS * 128 + 16 + 16 + 16 + 16
 end
 
 ---Calculate sun direction from pitch angle (like tutorial's pivot rotation)
