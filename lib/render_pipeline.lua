@@ -1,7 +1,7 @@
 -- lib/render_pipeline.lua
 -- Simple render pipeline with pass management and error handling
 local gfx = require("sokol.gfx")
-local util = require("lib.util")
+local log = require("lib.log")
 
 ---@class RenderPass
 ---@field name string Pass identifier
@@ -51,7 +51,7 @@ function M.execute(ctx, frame_data)
 
         local ok_desc, desc = pcall(pass.get_pass_desc, ctx)
         if not ok_desc then
-            util.warn("[" .. pass.name .. "] get_pass_desc error: " .. tostring(desc))
+            log.warn("[" .. pass.name .. "] get_pass_desc error: " .. tostring(desc))
             desc = nil
         end
 
@@ -59,7 +59,7 @@ function M.execute(ctx, frame_data)
             gfx.begin_pass(desc)
             local ok, err = pcall(pass.execute, ctx, frame_data)
             if not ok then
-                util.warn("[" .. pass.name .. "] execute error: " .. tostring(err))
+                log.warn("[" .. pass.name .. "] execute error: " .. tostring(err))
             end
             gfx.end_pass()
         end
@@ -75,7 +75,7 @@ function M.destroy()
         if pass.destroy then
             local ok, err = pcall(pass.destroy)
             if not ok then
-                util.warn("[" .. pass.name .. "] destroy error: " .. tostring(err))
+                log.warn("[" .. pass.name .. "] destroy error: " .. tostring(err))
             end
         end
     end

@@ -4,6 +4,8 @@ local app = require("sokol.app")
 local glue = require("sokol.glue")
 local stm = require("sokol.time")
 local sdtx = require("sokol.debugtext")
+local log = require("lib.log")
+local shaderMod = require("lib.shader")
 local util = require("lib.util")
 
 ---@type gfx.Shader?
@@ -255,20 +257,20 @@ void main() {
 ]]
 
 function init()
-    util.log("Raytracer init starting...")
+    log.log("Raytracer init starting...")
 
     stm.setup()
     sdtx.setup(sdtx.Desc({ fonts = { sdtx.font_c64() } }))
     last_time = stm.now()
 
-    shader = util.compile_shader(shader_source, "raytracer", {
+    shader = shaderMod.compile(shader_source, "raytracer", {
         { size = 16, stage = gfx.ShaderStage.FRAGMENT }
     })
     if not shader then
-        util.log("Shader compilation failed!")
+        log.log("Shader compilation failed!")
         return
     end
-    util.log("Shader compiled OK")
+    log.log("Shader compiled OK")
 
     pipeline = gfx.make_pipeline(gfx.PipelineDesc({
         shader = shader,
@@ -281,7 +283,7 @@ function init()
     }))
 
     if gfx.query_pipeline_state(pipeline) ~= gfx.ResourceState.VALID then
-        util.log("Pipeline creation failed!")
+        log.log("Pipeline creation failed!")
         return
     end
 

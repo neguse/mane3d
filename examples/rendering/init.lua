@@ -4,6 +4,8 @@ local hotreload = require("lib.hotreload")
 local gfx = require("sokol.gfx")
 local glue = require("sokol.glue")
 local app = require("sokol.app")
+local log = require("lib.log")
+local texture = require("lib.texture")
 local util = require("lib.util")
 local glm = require("lib.glm")
 local imgui = require("imgui")
@@ -186,18 +188,18 @@ local function load_model()
 
     if luac_mtime > 0 and luac_mtime >= lua_mtime then
         -- Load from cache
-        util.info("Loading cached bytecode...")
+        log.info("Loading cached bytecode...")
         local chunk, err = loadfile(luac_path)
         if chunk then
             model = chunk()
         else
-            util.warn("Failed to load luac: " .. tostring(err))
+            log.warn("Failed to load luac: " .. tostring(err))
         end
     end
 
     if not model then
         -- Load source and cache bytecode
-        util.info("Loading source and caching bytecode...")
+        log.info("Loading source and caching bytecode...")
         local chunk, err = loadfile(lua_path)
         if chunk then
             model = chunk()
@@ -207,13 +209,13 @@ local function load_model()
             if f then
                 f:write(bytecode)
                 f:close()
-                util.info("Saved bytecode cache: " .. luac_path)
+                log.info("Saved bytecode cache: " .. luac_path)
             end
         else
-            util.error("Failed to load model: " .. tostring(err))
+            log.error("Failed to load model: " .. tostring(err))
         end
     end
-    util.info(string.format("load model: %.3fs", os.clock() - t0))
+    log.info(string.format("load model: %.3fs", os.clock() - t0))
 
     local t_tangent, t_vbuf, t_texture = 0, 0, 0
 
@@ -303,7 +305,7 @@ local function load_model()
 
             local path = texture_base .. tex_info.path
             if not textures_cache[path] then
-                local img, view, smp = util.load_texture(path)
+                local img, view, smp = texture.load_bc7(path)
                 if img then
                     textures_cache[path] = { img = img, view = view, smp = smp }
                 end
@@ -392,12 +394,12 @@ local function load_model()
         end
     end
 
-    util.info(string.format("tangent: %.3fs, vbuf: %.3fs, texture: %.3fs", t_tangent, t_vbuf, t_texture))
-    util.info("Loaded " .. #meshes .. " meshes")
+    log.info(string.format("tangent: %.3fs, vbuf: %.3fs, texture: %.3fs", t_tangent, t_vbuf, t_texture))
+    log.info("Loaded " .. #meshes .. " meshes")
 end
 
 function init()
-    util.info("Rendering Pipeline init")
+    log.info("Rendering Pipeline init")
     imgui.setup()
     notify.setup()
 
@@ -484,7 +486,7 @@ function cleanup()
     default_normal = nil
     default_specular = nil
 
-    util.info("cleanup")
+    log.info("cleanup")
 end
 
 function event(ev)

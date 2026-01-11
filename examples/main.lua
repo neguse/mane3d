@@ -2,6 +2,8 @@
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
+local log = require("lib.log")
+local shaderMod = require("lib.shader")
 local util = require("lib.util")
 local licenses = require("mane3d.licenses")
 
@@ -40,14 +42,14 @@ void main() {
 
 function init()
     -- Log license information
-    util.log("=== Third-party licenses ===")
+    log.log("=== Third-party licenses ===")
     for _, lib in ipairs(licenses.libraries()) do
-        util.log(string.format("  %s (%s)", lib.name, lib.type))
+        log.log(string.format("  %s (%s)", lib.name, lib.type))
     end
 
-    shader = util.compile_shader(shader_source, "triangle")
+    shader = shaderMod.compile(shader_source, "triangle")
     if not shader then
-        util.log("Shader compilation failed!")
+        log.log("Shader compilation failed!")
         return
     end
 
@@ -63,7 +65,7 @@ function init()
     }))
 
     if gfx.query_pipeline_state(pipeline) ~= gfx.ResourceState.VALID then
-        util.log("Pipeline creation failed!")
+        log.log("Pipeline creation failed!")
         return
     end
 

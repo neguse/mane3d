@@ -3,7 +3,8 @@
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
-local util = require("lib.util")
+local log = require("lib.log")
+local shaderMod = require("lib.shader")
 local imgui = require("imgui")
 
 -- Triangle color (adjustable via ImGui)
@@ -57,7 +58,7 @@ void main() {
 ]]
 
 function init()
-    util.info("Simple triangle example init")
+    log.info("Simple triangle example init")
 
     -- Setup ImGui
     imgui.setup()
@@ -92,9 +93,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    shader = util.compile_shader_full(shader_source, "simple", shader_desc)
+    shader = shaderMod.compile_full(shader_source, "simple", shader_desc)
     if not shader then
-        util.error("Failed to compile shader")
+        log.error("Failed to compile shader")
         return
     end
 
@@ -109,7 +110,7 @@ function init()
         },
     }))
 
-    util.info("init() complete")
+    log.info("init() complete")
 end
 
 function frame()
@@ -183,7 +184,7 @@ end
 
 function cleanup()
     imgui.shutdown()
-    util.info("cleanup")
+    log.info("cleanup")
 end
 
 function event(ev)

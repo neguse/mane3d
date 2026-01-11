@@ -3,6 +3,9 @@
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
+local log = require("lib.log")
+local shaderMod = require("lib.shader")
+local texture = require("lib.texture")
 local util = require("lib.util")
 local glm = require("lib.glm")
 local imgui = require("imgui")
@@ -1460,7 +1463,7 @@ local function compute_tangent(p1, p2, p3, uv1, uv2, uv3)
 end
 
 local function create_gbuffer(w, h)
-    util.info("Creating G-Buffer " .. w .. "x" .. h)
+    log.info("Creating G-Buffer " .. w .. "x" .. h)
 
     -- Position buffer (RGBA16F for world position)
     gbuf_position_img = gfx.make_image(gfx.ImageDesc({
@@ -1717,7 +1720,7 @@ local function create_fullscreen_quad()
 end
 
 function init()
-    util.info("Deferred rendering example init")
+    log.info("Deferred rendering example init")
 
     -- Setup ImGui
     imgui.setup()
@@ -1761,9 +1764,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 3 },
         },
     }
-    geom_shader = util.compile_shader_full(geom_shader_source, "geom", geom_desc)
+    geom_shader = shaderMod.compile_full(geom_shader_source, "geom", geom_desc)
     if not geom_shader then
-        util.error("Failed to compile geometry shader")
+        log.error("Failed to compile geometry shader")
         return
     end
 
@@ -1827,9 +1830,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 3 },
         },
     }
-    water_geom_shader = util.compile_shader_full(water_geom_shader_source, "water_geom", water_geom_desc)
+    water_geom_shader = shaderMod.compile_full(water_geom_shader_source, "water_geom", water_geom_desc)
     if not water_geom_shader then
-        util.error("Failed to compile water geometry shader")
+        log.error("Failed to compile water geometry shader")
         return
     end
 
@@ -1903,9 +1906,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    light_shader = util.compile_shader_full(light_shader_source, "light", light_desc)
+    light_shader = shaderMod.compile_full(light_shader_source, "light", light_desc)
     if not light_shader then
-        util.error("Failed to compile lighting shader")
+        log.error("Failed to compile lighting shader")
         return
     end
 
@@ -1960,9 +1963,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    blur_shader = util.compile_shader_full(blur_shader_source, "blur", blur_desc)
+    blur_shader = shaderMod.compile_full(blur_shader_source, "blur", blur_desc)
     if not blur_shader then
-        util.error("Failed to compile blur shader")
+        log.error("Failed to compile blur shader")
         return
     end
 
@@ -2006,9 +2009,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    ssao_shader = util.compile_shader_full(ssao_shader_source, "ssao", ssao_desc)
+    ssao_shader = shaderMod.compile_full(ssao_shader_source, "ssao", ssao_desc)
     if not ssao_shader then
-        util.error("Failed to compile SSAO shader")
+        log.error("Failed to compile SSAO shader")
         return
     end
 
@@ -2060,9 +2063,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    motion_shader = util.compile_shader_full(motion_blur_shader_source, "motion", motion_desc)
+    motion_shader = shaderMod.compile_full(motion_blur_shader_source, "motion", motion_desc)
     if not motion_shader then
-        util.error("Failed to compile motion blur shader")
+        log.error("Failed to compile motion blur shader")
         return
     end
 
@@ -2119,9 +2122,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    ssr_uv_shader = util.compile_shader_full(ssr_uv_shader_source, "ssr_uv", ssr_uv_desc)
+    ssr_uv_shader = shaderMod.compile_full(ssr_uv_shader_source, "ssr_uv", ssr_uv_desc)
     if not ssr_uv_shader then
-        util.error("Failed to compile SSR UV shader")
+        log.error("Failed to compile SSR UV shader")
         return
     end
 
@@ -2164,9 +2167,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    reflection_shader = util.compile_shader_full(reflection_shader_source, "reflection", reflection_desc)
+    reflection_shader = shaderMod.compile_full(reflection_shader_source, "reflection", reflection_desc)
     if not reflection_shader then
-        util.error("Failed to compile reflection shader")
+        log.error("Failed to compile reflection shader")
         return
     end
 
@@ -2220,9 +2223,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    refraction_uv_shader = util.compile_shader_full(refraction_uv_shader_source, "refraction_uv", refraction_uv_desc)
+    refraction_uv_shader = shaderMod.compile_full(refraction_uv_shader_source, "refraction_uv", refraction_uv_desc)
     if not refraction_uv_shader then
-        util.error("Failed to compile refraction UV shader")
+        log.error("Failed to compile refraction UV shader")
         return
     end
 
@@ -2278,9 +2281,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    refraction_shader = util.compile_shader_full(refraction_shader_source, "refraction", refraction_desc)
+    refraction_shader = shaderMod.compile_full(refraction_shader_source, "refraction", refraction_desc)
     if not refraction_shader then
-        util.error("Failed to compile refraction shader")
+        log.error("Failed to compile refraction shader")
         return
     end
 
@@ -2326,9 +2329,9 @@ function init()
             { hlsl_sem_name = "TEXCOORD", hlsl_sem_index = 1 },
         },
     }
-    debug_shader = util.compile_shader_full(debug_shader_source, "debug", debug_desc)
+    debug_shader = shaderMod.compile_full(debug_shader_source, "debug", debug_desc)
     if not debug_shader then
-        util.error("Failed to compile debug shader")
+        log.error("Failed to compile debug shader")
         return
     end
 
@@ -2343,9 +2346,9 @@ function init()
     }))
 
     -- Load model
-    util.info("Loading mill-scene...")
+    log.info("Loading mill-scene...")
     local model = require("mill-scene")
-    util.info("Model loaded, processing meshes...")
+    log.info("Model loaded, processing meshes...")
 
     local default_normal = nil  -- Lazy create flat normal texture
 
@@ -2422,10 +2425,10 @@ function init()
             if tex_info and tex_info.path then
                 local path = "textures/" .. tex_info.path
                 if not textures_cache[path] then
-                    local img, view, smp = util.load_texture(path)
+                    local img, view, smp = texture.load(path)
                     if img then
                         textures_cache[path] = { img = img, view = view, smp = smp }
-                        util.info("Loaded diffuse: " .. path)
+                        log.info("Loaded diffuse: " .. path)
                     end
                 end
                 if textures_cache[path] then
@@ -2439,10 +2442,10 @@ function init()
                 if nrm_info and nrm_info.path then
                     local path = "textures/" .. nrm_info.path
                     if not textures_cache[path] then
-                        local img, view, smp = util.load_texture(path)
+                        local img, view, smp = texture.load(path)
                         if img then
                             textures_cache[path] = { img = img, view = view, smp = smp }
-                            util.info("Loaded normal: " .. path)
+                            log.info("Loaded normal: " .. path)
                         end
                     end
                     if textures_cache[path] then
@@ -2507,10 +2510,10 @@ function init()
                     if mask_info and mask_info.path then
                         local path = "textures/" .. mask_info.path
                         if not textures_cache[path] then
-                            local img, view, smp = util.load_texture(path)
+                            local img, view, smp = texture.load(path)
                             if img then
                                 textures_cache[path] = { img = img, view = view, smp = smp }
-                                util.info("Loaded reflection mask: " .. path)
+                                log.info("Loaded reflection mask: " .. path)
                             end
                         end
                         if textures_cache[path] then
@@ -2528,10 +2531,10 @@ function init()
                     if mask_info and mask_info.path then
                         local path = "textures/" .. mask_info.path
                         if not textures_cache[path] then
-                            local img, view, smp = util.load_texture(path)
+                            local img, view, smp = texture.load(path)
                             if img then
                                 textures_cache[path] = { img = img, view = view, smp = smp }
-                                util.info("Loaded refraction mask: " .. path)
+                                log.info("Loaded refraction mask: " .. path)
                             end
                         end
                         if textures_cache[path] then
@@ -2545,15 +2548,15 @@ function init()
                     mesh_entry.refraction_mask_smp = default_mask.smp
                 end
                 table.insert(water_meshes, mesh_entry)
-                util.info("Added water mesh: " .. mat_name)
+                log.info("Added water mesh: " .. mat_name)
             else
                 table.insert(meshes, mesh_entry)
             end
         end
     end
 
-    util.info("Loaded " .. #meshes .. " opaque meshes, " .. #water_meshes .. " water meshes")
-    util.info("init() complete")
+    log.info("Loaded " .. #meshes .. " opaque meshes, " .. #water_meshes .. " water meshes")
+    log.info("init() complete")
 end
 
 function frame()
@@ -3131,7 +3134,7 @@ end
 
 function cleanup()
     imgui.shutdown()
-    util.info("cleanup")
+    log.info("cleanup")
 end
 
 local event_logged = false
@@ -3142,7 +3145,7 @@ function event(ev)
     end
 
     if not event_logged then
-        util.info("Lua event() called!")
+        log.info("Lua event() called!")
         event_logged = true
     end
     local evtype = ev.type

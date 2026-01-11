@@ -3,6 +3,8 @@
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local glue = require("sokol.glue")
+local log = require("lib.log")
+local shaderMod = require("lib.shader")
 local util = require("lib.util")
 local glm = require("lib.glm")
 
@@ -247,11 +249,11 @@ local function make_sphere_indices(segments, rings)
 end
 
 function init()
-    util.info("Lighting example init")
+    log.info("Lighting example init")
 
     -- Compile shader
     -- Single uniform block: 2 mat4 + 6 vec4 = 128 + 96 = 224 bytes
-    shader = util.compile_shader(shader_source, "lighting", {
+    shader = shaderMod.compile(shader_source, "lighting", {
         {
             stage = gfx.ShaderStage.VERTEX,
             size = 224,
@@ -273,7 +275,7 @@ function init()
     })
 
     if not shader then
-        util.error("Failed to compile shader")
+        log.error("Failed to compile shader")
         return
     end
 
@@ -329,7 +331,7 @@ function init()
         index_count = #sphere_indices,
     }
 
-    util.info("Init complete")
+    log.info("Init complete")
 end
 
 function frame()
@@ -489,5 +491,5 @@ function event(ev)
 end
 
 function cleanup()
-    util.info("Lighting cleanup")
+    log.info("Lighting cleanup")
 end

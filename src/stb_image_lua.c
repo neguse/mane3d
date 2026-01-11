@@ -4,6 +4,7 @@
 
 #include <lua.h>
 #include <lauxlib.h>
+#include <sys/stat.h>
 
 /* Load image from file
  * Returns: width, height, channels, data (as string)
@@ -63,9 +64,29 @@ static int l_load_from_memory(lua_State *L) {
     return 4;
 }
 
+/* Get file modification time
+ * Returns: mtime (number) or nil if file doesn't exist
+ */
+static int l_mtime(lua_State *L) {
+    const char *filename = luaL_checkstring(L, 1);
+#ifdef _WIN32
+    struct _stat st;
+    if (_stat(filename, &st) != 0) {
+#else
+    struct stat st;
+    if (stat(filename, &st) != 0) {
+#endif
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushnumber(L, (lua_Number)st.st_mtime);
+    return 1;
+}
+
 static const luaL_Reg stb_image_funcs[] = {
     {"load", l_load},
     {"load_from_memory", l_load_from_memory},
+    {"mtime", l_mtime},
     {NULL, NULL}
 };
 

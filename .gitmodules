@@ -19,3 +19,6 @@
 [submodule "deps/3d-game-shaders-for-beginners"]
 	path = deps/3d-game-shaders-for-beginners
 	url = https://github.com/lettier/3d-game-shaders-for-beginners.git
+[submodule "deps/bc7enc_rdo"]
+	path = deps/bc7enc_rdo
+	url = https://github.com/richgel999/bc7enc_rdo

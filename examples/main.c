@@ -74,6 +74,10 @@ extern void shdc_shutdown(void);
 extern int luaopen_imgui(lua_State *L);
 #endif
 
+#ifdef MANE3D_HAS_BC7ENC
+extern int luaopen_bc7enc(lua_State *L);
+#endif
+
 static lua_State *L = NULL;
 static char g_script_path[512] = {0};
 static char g_script_dir[512] = {0};
@@ -415,6 +419,11 @@ sapp_desc sokol_main(int argc, char *argv[])
 
 #ifdef MANE3D_HAS_IMGUI
     luaL_requiref(L, "imgui", luaopen_imgui, 0);
+    lua_pop(L, 1);
+#endif
+
+#ifdef MANE3D_HAS_BC7ENC
+    luaL_requiref(L, "bc7enc", luaopen_bc7enc, 0);
     lua_pop(L, 1);
 #endif
 
