@@ -9,7 +9,7 @@
     {
       "name": "win-d3d11-debug",
       "displayName": "Windows D3D11 Debug",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-d3d11",
       "condition": {
         "type": "equals",
@@ -27,7 +27,7 @@
     {
       "name": "win-d3d11-release",
       "displayName": "Windows D3D11 Release",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-d3d11",
       "condition": {
         "type": "equals",
@@ -43,7 +43,7 @@
     {
       "name": "win-d3d11-shared",
       "displayName": "Windows D3D11 Shared",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-d3d11-shared",
       "condition": {
         "type": "equals",
@@ -59,7 +59,7 @@
     {
       "name": "win-gl-debug",
       "displayName": "Windows OpenGL Debug",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-gl",
       "condition": {
         "type": "equals",
