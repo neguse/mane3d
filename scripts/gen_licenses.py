@@ -10,6 +10,7 @@ import json
 LIBRARY_INFO = {
     "glslang": {"type": "BSD-3-Clause/MIT/Apache-2.0"},  # Multi-license
     "tint-extract": {"name": "Tint"},  # Better display name
+    "3d-game-shaders-for-beginners": {"skip": True},  # Hardcoded above
 }
 
 def detect_license_type(text):
@@ -179,6 +180,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."""
 
                 # Get library info (use directory name as default)
                 info = LIBRARY_INFO.get(lib_key, {})
+                # Skip if marked in LIBRARY_INFO
+                if info.get("skip"):
+                    continue
                 lib_name = info.get("name", lib_key)
                 lib_url = info.get("url", "")
 
