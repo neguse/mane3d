@@ -15,6 +15,7 @@ app.innerHTML = `
         <option value="breakout">Breakout</option>
       </select>
       <button id="share-btn">📤 Share</button>
+      <button id="license-btn">📜 License</button>
     </header>
     <main class="editor-canvas">
       <div id="editor"></div>
@@ -73,6 +74,15 @@ document.querySelector('#sample-select')?.addEventListener('change', async (e) =
   const sample = (e.target as HTMLSelectElement).value
   if (!sample) return
   const res = await fetch(`/examples/${sample}.lua`)
+  if (res.ok) {
+    setCode(await res.text())
+    runCode()
+  }
+})
+
+// License button
+document.querySelector('#license-btn')?.addEventListener('click', async () => {
+  const res = await fetch('/examples/license.lua')
   if (res.ok) {
     setCode(await res.text())
     runCode()
