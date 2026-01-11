@@ -833,8 +833,13 @@ def main():
     imgui_h = sys.argv[1]
     output_path = sys.argv[2] if len(sys.argv) > 2 else 'gen/bindings/imgui_gen.cpp'
 
+    # Determine gen directory (same as output directory root)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.abspath(os.path.join(script_dir, '..'))
+    gen_dir = os.path.join(root_dir, 'gen')
+
     print(f"Generating ImGui IR from {imgui_h}...")
-    ir_data = ir.gen_imgui(imgui_h, 'imgui')
+    ir_data = ir.gen_imgui(imgui_h, 'imgui', output_dir=gen_dir)
 
     print(f"Found {len([d for d in ir_data['decls'] if d['kind'] == 'func'])} functions")
     print(f"Found {len([d for d in ir_data['decls'] if d['kind'] == 'struct'])} structs")

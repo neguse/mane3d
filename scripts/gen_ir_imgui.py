@@ -2,7 +2,7 @@
 #   Generate an intermediate representation of a clang AST dump.
 #   Extended from sokol/bindgen/gen_ir.py for C++ and ImGui support.
 #-------------------------------------------------------------------------------
-import re, json, sys, subprocess
+import os, re, json, sys, subprocess
 from collections import defaultdict
 
 def is_api_decl(decl, prefix):
@@ -235,7 +235,8 @@ def clang(csrc_path, with_comments=False, cpp_mode=False, include_paths=None):
     return subprocess.check_output(cmd)
 
 def gen(header_path, source_path, module, main_prefix, dep_prefixes,
-        with_comments=False, cpp_mode=False, namespace=None, include_paths=None):
+        with_comments=False, cpp_mode=False, namespace=None, include_paths=None,
+        output_dir=None):
     """Generate IR from header file."""
     ast = clang(source_path, with_comments=with_comments, cpp_mode=cpp_mode, include_paths=include_paths)
     inp = json.loads(ast)
@@ -291,15 +292,21 @@ def gen(header_path, source_path, module, main_prefix, dep_prefixes,
             if func_counts[func_name] > 1:
                 decl['has_overloads'] = True
 
-    with open(f'{module}.json', 'w') as f:
+    # Determine output path
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        json_path = os.path.join(output_dir, f'{module}.json')
+    else:
+        json_path = f'{module}.json'
+
+    with open(json_path, 'w') as f:
         f.write(json.dumps(outp, indent=2))
     return outp
 
-def gen_imgui(imgui_h_path, output_name='imgui'):
+def gen_imgui(imgui_h_path, output_name='imgui', output_dir=None):
     """Generate IR specifically for ImGui."""
     # Create a simple source file that includes imgui.h
     import tempfile
-    import os
 
     # Make paths absolute for clang to find from temp directory
     imgui_h_path = os.path.abspath(imgui_h_path)
@@ -320,7 +327,8 @@ def gen_imgui(imgui_h_path, output_name='imgui'):
             with_comments=True,
             cpp_mode=True,
             namespace='ImGui',
-            include_paths=[imgui_dir]
+            include_paths=[imgui_dir],
+            output_dir=output_dir
         )
         return outp
     finally:
@@ -334,5 +342,10 @@ if __name__ == '__main__':
     imgui_h = sys.argv[1]
     output_name = sys.argv[2] if len(sys.argv) > 2 else 'imgui'
 
-    ir = gen_imgui(imgui_h, output_name)
-    print(f"Generated {output_name}.json with {len(ir['decls'])} declarations")
+    # Output to gen/ directory relative to script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.abspath(os.path.join(script_dir, '..'))
+    gen_dir = os.path.join(root_dir, 'gen')
+
+    ir_data = gen_imgui(imgui_h, output_name, output_dir=gen_dir)
+    print(f"Generated gen/{output_name}.json with {len(ir_data['decls'])} declarations")

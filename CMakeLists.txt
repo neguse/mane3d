@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(mane3d C CXX)
 
-# MSVC parallel compilation
+# MSVC parallel compilation and UTF-8 source encoding
 if(MSVC)
-    add_compile_options(/MP)
+    add_compile_options(/MP /utf-8)
 endif()
 
 # Options
