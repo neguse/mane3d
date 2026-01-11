@@ -1,8 +1,101 @@
 -- Utility functions for mane3d examples
 local gfx = require("sokol.gfx")
 local slog = require("sokol.log")
+local stm = require("sokol.time")
+
+-- Initialize sokol_time (once)
+if not _G._stm_initialized then
+    stm.setup()
+    _G._stm_initialized = true
+end
 
 local M = {}
+
+-- Profiling support
+M.profile = {
+    enabled = true,
+    entries = {},  -- { category = { { name, time_ms }, ... } }
+    totals = {},   -- { category = total_ms }
+    pending = {},  -- { key = start_time }
+}
+
+--- Start a profiling measurement
+---@param category string category (e.g., "shader", "texture")
+---@param name string specific item name
+function M.profile_begin(category, name)
+    if not M.profile.enabled then return end
+    local key = category .. ":" .. name
+    M.profile.pending[key] = stm.now()
+end
+
+--- End a profiling measurement
+---@param category string category (e.g., "shader", "texture")
+---@param name string specific item name
+function M.profile_end(category, name)
+    if not M.profile.enabled then return end
+    local key = category .. ":" .. name
+    local start = M.profile.pending[key]
+    if not start then return end
+
+    local elapsed_ms = stm.ms(stm.since(start))
+    M.profile.pending[key] = nil
+
+    if not M.profile.entries[category] then
+        M.profile.entries[category] = {}
+        M.profile.totals[category] = 0
+    end
+
+    table.insert(M.profile.entries[category], { name = name, time_ms = elapsed_ms })
+    M.profile.totals[category] = M.profile.totals[category] + elapsed_ms
+end
+
+--- Print profiling report
+function M.profile_report()
+    if not M.profile.enabled then return end
+
+    local total_all = 0
+    for _, total in pairs(M.profile.totals) do
+        total_all = total_all + total
+    end
+
+    M.info("=== Profile Report ===")
+    M.info(string.format("Total init time: %.2f ms", total_all))
+    M.info("")
+
+    -- Sort categories by total time (descending)
+    local cats = {}
+    for cat in pairs(M.profile.entries) do
+        table.insert(cats, cat)
+    end
+    table.sort(cats, function(a, b)
+        return M.profile.totals[a] > M.profile.totals[b]
+    end)
+
+    for _, category in ipairs(cats) do
+        local entries = M.profile.entries[category]
+        local total = M.profile.totals[category]
+        M.info(string.format("[%s] %.2f ms (%d items)", category, total, #entries))
+
+        -- Sort entries by time (descending) and show top 10
+        table.sort(entries, function(a, b) return a.time_ms > b.time_ms end)
+        local show_count = math.min(#entries, 10)
+        for i = 1, show_count do
+            local e = entries[i]
+            M.info(string.format("  %.2f ms - %s", e.time_ms, e.name))
+        end
+        if #entries > 10 then
+            M.info(string.format("  ... and %d more", #entries - 10))
+        end
+        M.info("")
+    end
+end
+
+--- Clear profiling data
+function M.profile_clear()
+    M.profile.entries = {}
+    M.profile.totals = {}
+    M.profile.pending = {}
+end
 
 -- Resolve path relative to script directory
 -- Absolute paths (starting with / or X:) are returned as-is
@@ -59,6 +152,7 @@ end
 -- @param texture_sampler_pairs table|nil: optional texture-sampler pair descriptors
 -- @return shader handle or nil on failure
 function M.compile_shader(source, program_name, uniform_blocks, attrs, texture_sampler_pairs)
+    M.profile_begin("shader", program_name)
     local shdc = require("shdc")
     local lang = M.get_shader_lang()
 
@@ -68,6 +162,7 @@ function M.compile_shader(source, program_name, uniform_blocks, attrs, texture_s
     local result = shdc.compile(source, program_name, lang)
     if not result.success then
         M.error("Shader compile error: " .. (result.error or "unknown"))
+        M.profile_end("shader", program_name)
         return nil
     end
 
@@ -118,9 +213,11 @@ function M.compile_shader(source, program_name, uniform_blocks, attrs, texture_s
     local shd = gfx.make_shader(gfx.ShaderDesc(desc_table))
     if gfx.query_shader_state(shd) ~= gfx.ResourceState.VALID then
         M.error("Failed to create shader")
+        M.profile_end("shader", program_name)
         return nil
     end
 
+    M.profile_end("shader", program_name)
     return shd
 end
 
@@ -130,6 +227,7 @@ end
 -- @param shader_desc table: full shader descriptor (uniform_blocks, views, samplers, texture_sampler_pairs, attrs)
 -- @return shader handle or nil on failure
 function M.compile_shader_full(source, program_name, shader_desc)
+    M.profile_begin("shader", program_name)
     local shdc = require("shdc")
     local lang = M.get_shader_lang()
 
@@ -138,6 +236,7 @@ function M.compile_shader_full(source, program_name, shader_desc)
     local result = shdc.compile(source, program_name, lang)
     if not result.success then
         M.error("Shader compile error: " .. (result.error or "unknown"))
+        M.profile_end("shader", program_name)
         return nil
     end
 
@@ -157,6 +256,7 @@ function M.compile_shader_full(source, program_name, shader_desc)
 
     if not vs_data or not fs_data then
         M.error("Missing shader data")
+        M.profile_end("shader", program_name)
         return nil
     end
 
@@ -177,9 +277,11 @@ function M.compile_shader_full(source, program_name, shader_desc)
     local shd = gfx.make_shader(gfx.ShaderDesc(desc_table))
     if gfx.query_shader_state(shd) ~= gfx.ResourceState.VALID then
         M.error("Failed to create shader")
+        M.profile_end("shader", program_name)
         return nil
     end
 
+    M.profile_end("shader", program_name)
     return shd
 end
 
@@ -217,22 +319,27 @@ end
 -- @param filename string: path to image file
 -- @return width, height, channels, pixels or nil, error_message
 function M.load_image_data(filename)
+    M.profile_begin("image_decode", filename)
     local stb = require("stb.image")
     local resolved = M.resolve_path(filename)
 
     -- Check if running in WASM (fetch_file is defined in main.c for Emscripten)
     ---@type fun(filename: string): string?
     local fetch_file = _G["fetch_file"]
+    local w, h, ch, pixels
     if fetch_file then
         local data = fetch_file(resolved)
         if not data then
+            M.profile_end("image_decode", filename)
             return nil, "Failed to fetch: " .. resolved
         end
-        return stb.load_from_memory(data, 4)
+        w, h, ch, pixels = stb.load_from_memory(data, 4)
     else
         -- Native: load directly from filesystem
-        return stb.load(resolved, 4)
+        w, h, ch, pixels = stb.load(resolved, 4)
     end
+    M.profile_end("image_decode", filename)
+    return w, h, ch, pixels
 end
 
 -- Load texture from file using gpu wrappers (GC-safe)
@@ -253,6 +360,7 @@ function M.load_texture(filename, opts)
     ---@cast ch integer
     ---@cast pixels string
 
+    M.profile_begin("gpu_upload", filename)
     M.info("Loaded texture: " .. filename .. " (" .. w .. "x" .. h .. ")")
 
     -- Create image with gpu wrapper (GC-safe)
@@ -264,6 +372,7 @@ function M.load_texture(filename, opts)
     }))
 
     if gfx.query_image_state(img.handle) ~= gfx.ResourceState.VALID then
+        M.profile_end("gpu_upload", filename)
         return nil, "Failed to create image"
     end
 
@@ -280,6 +389,7 @@ function M.load_texture(filename, opts)
         wrap_v = opts.wrap_v or gfx.Wrap.REPEAT,
     }))
 
+    M.profile_end("gpu_upload", filename)
     return img, view, smp
 end
 

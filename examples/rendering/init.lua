@@ -412,6 +412,9 @@ function init()
     pipeline.register(imgui_pass)
 
     load_model()
+
+    -- Print profiling report
+    util.profile_report()
 end
 
 function frame()
