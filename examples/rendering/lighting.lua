@@ -62,7 +62,11 @@ layout(binding=0) uniform fs_params {
     int blinn_phong_enabled;                // 1 = Blinn-Phong, 0 = Phong
     int fresnel_enabled;                    // 1 = Fresnel, 0 = no Fresnel
     float max_fresnel_power;                // specular_map.b * this value
+    int rim_light_enabled;                  // 1 = Rim Light, 0 = no Rim Light
+    int debug_mode;                         // 0=off, 1=fresnel, 2=normal, 3=specular
     int pad1;
+    int pad2;
+    int pad3;
 };
 
 // Helper to access light fields
@@ -197,8 +201,33 @@ void main() {
     // Ambient (from base.frag line 312-322, simplified)
     vec3 ambient = pow(light_model_ambient.rgb, vec3(gamma)) * albedo_linear;
 
-    // Final color (from base.frag line 326-330, without rim light/emission)
-    vec3 color = ambient + diffuse_total + specular_total;
+    // Rim light (from base.frag line 278-294)
+    vec3 rim_light = vec3(0.0);
+    if (rim_light_enabled == 1) {
+        float rim_factor = 1.0 - max(0.0, dot(eye_direction, normal));
+        rim_light = vec3(pow(rim_factor, 2.0) * 1.2);
+        rim_light *= diffuse_total;
+    }
+
+    // Final color (from base.frag line 326-330)
+    vec3 color = ambient + diffuse_total + rim_light + specular_total;
+
+    // Debug modes
+    if (debug_mode == 1) {
+        // Fresnel factor visualization (based on view angle)
+        float fresnel_debug = 1.0 - max(0.0, dot(eye_direction, normal));
+        fresnel_debug = pow(fresnel_debug, specular_map.b * max_fresnel_power);
+        frag_color = vec4(vec3(fresnel_debug), 1.0);
+        return;
+    } else if (debug_mode == 2) {
+        // Normal visualization
+        frag_color = vec4(normal * 0.5 + 0.5, 1.0);
+        return;
+    } else if (debug_mode == 3) {
+        // Specular map visualization (R=intensity, G=shininess, B=fresnel)
+        frag_color = vec4(specular_map.rgb, 1.0);
+        return;
+    }
 
     // Linear -> sRGB (gamma correction)
     color = pow(color, vec3(gamma_rec));
