@@ -1,6 +1,7 @@
 import './style.css'
 import { createEditor, getCode, setCode } from './editor'
 import { loadGist, saveGist } from './gist'
+import { initDocs } from './docs'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 
@@ -19,8 +20,17 @@ app.innerHTML = `
     </header>
     <main class="editor-canvas">
       <div id="editor"></div>
-      <div id="canvas-container">
-        <iframe id="player-frame" src="about:blank"></iframe>
+      <div id="right-panel">
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-panel="player">Player</button>
+          <button class="panel-tab" data-panel="docs">Docs</button>
+        </div>
+        <div id="player-panel" class="panel-content active">
+          <iframe id="player-frame" src="about:blank"></iframe>
+        </div>
+        <div id="docs-panel" class="panel-content">
+          <div id="docs-container"></div>
+        </div>
       </div>
     </main>
   </div>
@@ -106,3 +116,28 @@ if (gistId) {
     })
     .catch(() => setCode('-- Failed to load default example'))
 }
+
+// Tab switching
+let docsInitialized = false
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', async () => {
+    const panel = (tab as HTMLElement).dataset.panel!
+
+    // Update tab active state
+    document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'))
+    tab.classList.add('active')
+
+    // Update panel visibility
+    document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'))
+    document.getElementById(`${panel}-panel`)?.classList.add('active')
+
+    // Lazy init docs
+    if (panel === 'docs' && !docsInitialized) {
+      docsInitialized = true
+      const docsContainer = document.getElementById('docs-container')
+      if (docsContainer) {
+        await initDocs(docsContainer)
+      }
+    }
+  })
+})

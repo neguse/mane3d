@@ -33,3 +33,7 @@ dist/
 # WASM build artifacts in public/
 public/*.wasm
 public/*.js
+
+# Generated documentation
+doc.json
+doc.md

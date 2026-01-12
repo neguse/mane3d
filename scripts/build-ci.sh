@@ -59,6 +59,14 @@ mkdir -p public
 cp build/wasm-release/*.wasm public/
 cp build/wasm-release/*.js public/
 
+# Generate API documentation
+log "Setting up Lua Language Server..."
+LUA_LS_VERSION="3.16.4"
+curl -sL "https://github.com/LuaLS/lua-language-server/releases/download/${LUA_LS_VERSION}/lua-language-server-${LUA_LS_VERSION}-linux-x64.tar.gz" | tar xz -C /tmp
+log "Generating documentation..."
+/tmp/bin/lua-language-server --doc .
+log "Documentation generated: doc.json"
+
 # Build Playground (Vite)
 log "Building Vite project..."
 npm run build
