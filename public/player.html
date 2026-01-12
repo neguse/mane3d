@@ -11,8 +11,12 @@
   </style>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
+  <canvas id="canvas" tabindex="0"></canvas>
   <script>
+    // Focus canvas on click for keyboard input
+    document.getElementById('canvas').addEventListener('click', function() {
+      this.focus()
+    })
     window._editorCode = ''
 
     window.getEditorCode = () => window._editorCode
