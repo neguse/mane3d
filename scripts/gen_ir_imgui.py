@@ -211,10 +211,11 @@ def extract_namespace_funcs(namespace_decl, source, func_prefix=''):
 
 def clang(csrc_path, with_comments=False, cpp_mode=False, include_paths=None):
     """Run clang to get AST dump."""
+    clangpp = os.environ.get('CLANGPP', 'clang++')
     if cpp_mode:
-        cmd = ['clang++', '-std=c++17']
+        cmd = [clangpp, '-std=c++17']
     else:
-        cmd = ['clang']
+        cmd = [clangpp.replace('++', '').replace('clang', 'clang')]
 
     cmd.extend(['-Xclang', '-ast-dump=json', '-c', csrc_path])
 

@@ -131,7 +131,7 @@
       "name": "wasm-release",
       "displayName": "WebAssembly WebGPU Release",
       "description": "Use with: emcmake cmake --preset wasm-release",
-      "generator": "Unix Makefiles",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/wasm",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
@@ -141,7 +141,7 @@
       "name": "wasm-debug",
       "displayName": "WebAssembly WebGPU Debug",
       "description": "Use with: emcmake cmake --preset wasm-debug",
-      "generator": "Unix Makefiles",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/wasm",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"

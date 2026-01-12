@@ -6,12 +6,34 @@
   <title>Mane3D Player</title>
   <style>
     * { margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-    canvas { width: 100%; height: 100%; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+    }
+    #canvas-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      /* CSS size = render resolution (sokol reads this) */
+      image-rendering: pixelated;
+      transform-origin: top center;
+    }
   </style>
 </head>
 <body>
-  <canvas id="canvas" tabindex="0"></canvas>
+  <div id="canvas-wrapper">
+    <canvas id="canvas" width="480" height="360" tabindex="0"></canvas>
+  </div>
   <script>
     // Focus canvas on click for keyboard input
     document.getElementById('canvas').addEventListener('click', function() {
@@ -24,14 +46,53 @@
       window.parent.postMessage({ type: 'ready' }, '*')
     }
 
+    window._canvasWidth = 480
+    window._canvasHeight = 360
+
     window.Module = {
       canvas: document.getElementById('canvas'),
       onRuntimeInitialized: () => console.log('WASM runtime initialized')
     }
 
-    // Wait for code from parent, then load WASM
+    // Update canvas resolution and scale display
+    function setResolution(width, height) {
+      const canvas = document.getElementById('canvas')
+      const wrapper = document.getElementById('canvas-wrapper')
+
+      if (width === 0 && height === 0) {
+        // Native resolution - use window size
+        window._canvasWidth = window.innerWidth
+        window._canvasHeight = window.innerHeight
+      } else {
+        window._canvasWidth = width
+        window._canvasHeight = height
+      }
+
+      // Set both canvas buffer and CSS size to render resolution
+      canvas.width = window._canvasWidth
+      canvas.height = window._canvasHeight
+      canvas.style.width = window._canvasWidth + 'px'
+      canvas.style.height = window._canvasHeight + 'px'
+
+      // Calculate scale to fit in viewport while maintaining aspect ratio
+      const viewW = wrapper.clientWidth
+      const viewH = wrapper.clientHeight
+      const scaleX = viewW / window._canvasWidth
+      const scaleY = viewH / window._canvasHeight
+      const scale = Math.min(scaleX, scaleY, 1) // Don't scale up beyond 1x for now, or remove ", 1" to allow upscale
+
+      // Actually let's allow upscale for better display
+      const displayScale = Math.min(scaleX, scaleY)
+      canvas.style.transform = `scale(${displayScale})`
+
+      console.log(`Canvas resolution: ${window._canvasWidth}x${window._canvasHeight}, display scale: ${displayScale.toFixed(2)}`)
+    }
+
+    // Wait for messages from parent
     window.addEventListener('message', (e) => {
-      if (e.data.type === 'setCode') {
+      if (e.data.type === 'setResolution') {
+        setResolution(e.data.width, e.data.height)
+      } else if (e.data.type === 'setCode') {
         window._editorCode = e.data.code
         // Now load WASM script
         const script = document.createElement('script')

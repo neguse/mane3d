@@ -51,6 +51,14 @@ EM_JS(void, js_notify_ready, (void), {
         window.onWasmReady();
     }
 });
+
+/* Get canvas resolution from JS globals */
+EM_JS(int, js_get_canvas_width, (void), {
+    return window._canvasWidth || 480;
+});
+EM_JS(int, js_get_canvas_height, (void), {
+    return window._canvasHeight || 360;
+});
 #endif
 
 /* declare luaopen functions from generated bindings */
@@ -502,15 +510,27 @@ sapp_desc sokol_main(int argc, char *argv[])
     }
 #endif
 
+#ifdef __EMSCRIPTEN__
+    int w = js_get_canvas_width();
+    int h = js_get_canvas_height();
+#else
+    int w = 1920;
+    int h = 1080;
+#endif
     return (sapp_desc){
         .init_cb = init,
         .frame_cb = frame,
         .cleanup_cb = cleanup,
         .event_cb = event,
-        .width = 1920,
-        .height = 1080,
+        .width = w,
+        .height = h,
         .window_title = "Måne3D",
         .logger.func = slog_func,
-        .html5.canvas_resize = true,
+        .html5.canvas_resize = true,  /* set canvas to sapp_desc size */
+#ifdef __EMSCRIPTEN__
+        .high_dpi = false,  /* use exact resolution from JS */
+#else
+        .high_dpi = true,
+#endif
     };
 }

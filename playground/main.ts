@@ -15,6 +15,13 @@ app.innerHTML = `
         <option value="raytracer">Raytracer</option>
         <option value="breakout">Breakout</option>
       </select>
+      <select id="resolution-select">
+        <option value="320x240">320x240</option>
+        <option value="480x360" selected>480x360</option>
+        <option value="640x480">640x480</option>
+        <option value="720x720">720x720</option>
+        <option value="native">Native</option>
+      </select>
       <button id="share-btn">📤 Share</button>
       <button id="license-btn">📜 License</button>
     </header>
@@ -40,14 +47,27 @@ app.innerHTML = `
 const editorContainer = document.querySelector<HTMLDivElement>('#editor')!
 createEditor(editorContainer)
 
+// Get current resolution from selector
+function getResolution(): { width: number, height: number } | null {
+  const select = document.querySelector<HTMLSelectElement>('#resolution-select')
+  const value = select?.value || '480x360'
+  if (value === 'native') return null
+  const [w, h] = value.split('x').map(Number)
+  return { width: w, height: h }
+}
+
 // Run function
 function runCode() {
   const iframe = document.querySelector<HTMLIFrameElement>('#player-frame')!
   const code = getCode()
+  const resolution = getResolution()
 
   // Listen for player ready message
   const handleMessage = (e: MessageEvent) => {
     if (e.data.type === 'playerReady') {
+      // Send resolution first, then code
+      const res = resolution || { width: 0, height: 0 }
+      iframe.contentWindow?.postMessage({ type: 'setResolution', ...res }, '*')
       iframe.contentWindow?.postMessage({ type: 'setCode', code }, '*')
       window.removeEventListener('message', handleMessage)
     }
@@ -61,6 +81,11 @@ function runCode() {
 
 // Button handlers
 document.querySelector('#run-btn')?.addEventListener('click', runCode)
+
+// Resolution change handler - restart player
+document.querySelector('#resolution-select')?.addEventListener('change', () => {
+  runCode()
+})
 
 // Alt+Enter to run
 document.addEventListener('keydown', (e) => {

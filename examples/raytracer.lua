@@ -308,8 +308,8 @@ function frame()
         last_time = now
     end
 
-    local w = 800
-    local h = 600
+    local w = app.width()
+    local h = app.height()
 
     gfx.begin_pass(gfx.Pass({
         action = gfx.PassAction({
@@ -326,10 +326,11 @@ function frame()
 
     gfx.draw(0, 4, 1)
 
-    -- Draw FPS
+    -- Draw FPS and resolution (3x size for low-res readability)
+    sdtx.canvas(w / 3, h / 3)
     sdtx.origin(0.5, 0.5)
     sdtx.color3f(1, 1, 0)
-    sdtx.puts(string.format("FPS: %.1f", fps))
+    sdtx.puts(string.format("FPS: %.1f\n%dx%d", fps, w, h))
     sdtx.draw()
 
     gfx.end_pass()

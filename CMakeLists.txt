@@ -89,6 +89,10 @@ endif()
 
 # Code generation
 find_package(Python3 COMPONENTS Interpreter)
+find_program(CLANGPP_EXECUTABLE NAMES clang++ clang++.exe clang++-18 clang++-17 clang++-16 clang++-15
+    HINTS "C:/Program Files/LLVM/bin" "C:/Program Files (x86)/LLVM/bin" "$ENV{EMSDK}/upstream/bin"
+)
+message(STATUS "CLANGPP_EXECUTABLE: ${CLANGPP_EXECUTABLE}")
 set(SOKOL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol" CACHE PATH "Path to sokol directory")
 set(BINDGEN_DIR "${SOKOL_DIR}/bindgen" CACHE PATH "Path to sokol/bindgen directory")
 
@@ -116,7 +120,7 @@ if(Python3_FOUND)
                ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/sokol_gl.c
                ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/sokol_debugtext.c
                ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/sokol_shape.c
-        COMMAND ${CMAKE_COMMAND} -E env PYTHONUTF8=1
+        COMMAND ${CMAKE_COMMAND} -E env "PYTHONUTF8=1" "CLANGPP=${CLANGPP_EXECUTABLE}" "PATH=$ENV{EMSDK}/upstream/bin;$ENV{PATH}"
             ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_lua.py
             --sokol ${SOKOL_DIR}
             --bindgen ${BINDGEN_DIR}
@@ -300,7 +304,7 @@ if(MANE3D_BUILD_EXAMPLE)
             SUFFIX ".html"
         )
         target_link_options(mane3d-example PRIVATE
-            -sASYNCIFY
+            # -sASYNCIFY  # disabled for faster builds
             -sALLOW_MEMORY_GROWTH=1
             -sASSERTIONS=1
             -sSTACK_SIZE=1048576
@@ -322,29 +326,23 @@ install(DIRECTORY deps/lua/ DESTINATION include/lua FILES_MATCHING PATTERN "*.h"
 if(MANE3D_BUILD_IMGUI)
     # ImGui auto-generated bindings (requires clang++)
     option(MANE3D_GEN_IMGUI "Generate ImGui bindings (requires clang++)" ON)
-    if(MANE3D_GEN_IMGUI AND Python3_FOUND)
-        find_program(CLANGPP_EXECUTABLE NAMES clang++ clang++.exe clang++-18 clang++-17 clang++-16 clang++-15
-            HINTS "C:/Program Files/LLVM/bin" "C:/Program Files (x86)/LLVM/bin"
-        )
-        message(STATUS "CLANGPP_EXECUTABLE: ${CLANGPP_EXECUTABLE}")
-        if(CLANGPP_EXECUTABLE)
-            add_custom_command(
-                OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/imgui_gen.cpp
-                COMMAND ${CMAKE_COMMAND} -E env PYTHONUTF8=1
-                    ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_imgui.py
+    if(MANE3D_GEN_IMGUI AND Python3_FOUND AND CLANGPP_EXECUTABLE)
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/imgui_gen.cpp
+            COMMAND ${CMAKE_COMMAND} -E env PYTHONUTF8=1 CLANGPP=${CLANGPP_EXECUTABLE}
+                ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_imgui.py
+                ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui/imgui.h
+                ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/imgui_gen.cpp
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_imgui.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_ir_imgui.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_util_imgui.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui/imgui.h
-                    ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/imgui_gen.cpp
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_imgui.py
-                        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_ir_imgui.py
-                        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_util_imgui.py
-                        ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui/imgui.h
-                COMMENT "Generating ImGui Lua bindings..."
-            )
-            set(IMGUI_GEN_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/imgui_gen.cpp)
-        else()
-            message(WARNING "clang++ not found, skipping ImGui binding generation")
-        endif()
+            COMMENT "Generating ImGui Lua bindings..."
+        )
+        set(IMGUI_GEN_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/imgui_gen.cpp)
+    elseif(MANE3D_GEN_IMGUI)
+        message(WARNING "clang++ not found, skipping ImGui binding generation")
     endif()
 
     # ImGui library (C++)

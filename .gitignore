@@ -16,6 +16,7 @@ __pycache__/
 .vs/
 .vscode/
 CMakeSettings.json
+CMakeUserPresets.json
 *.user
 .claude/settings.local.json
 examples/mill-scene.lua
