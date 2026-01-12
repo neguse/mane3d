@@ -769,8 +769,10 @@ class LuaCATSGenerator:
             if param.get('is_out') or (t.endswith('*') and t not in ('const char *', 'const void *', 'void *') and '(*)' not in t):
                 out_params.append(param)
 
-        # @param annotations
+        # @param annotations (skip output-only params)
         for param in params:
+            if param in out_params:
+                continue
             pname = param['name'] or 'arg'
             ptype = self.lua_type(param['type'], func_name, pname)
             optional = '?' if param.get('has_default') else ''
