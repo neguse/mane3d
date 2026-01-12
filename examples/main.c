@@ -6,6 +6,8 @@
 #include "sokol_gl.h"
 #include "sokol_debugtext.h"
 #include "sokol_time.h"
+#include "sokol_audio.h"
+#include "sokol_shape.h"
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -69,6 +71,8 @@ extern int luaopen_sokol_log(lua_State *L);
 extern int luaopen_sokol_time(lua_State *L);
 extern int luaopen_sokol_gl(lua_State *L);
 extern int luaopen_sokol_debugtext(lua_State *L);
+extern int luaopen_sokol_audio(lua_State *L);
+extern int luaopen_sokol_shape(lua_State *L);
 extern int luaopen_mane3d_licenses(lua_State *L);
 extern int luaopen_stb_image(lua_State *L);
 
@@ -331,6 +335,14 @@ static void init(void)
     sgl_setup(&(sgl_desc_t){
         .logger.func = slog_func,
     });
+    saudio_setup(&(saudio_desc){
+        .sample_rate = 44100,
+        .num_channels = 1,
+        .buffer_frames = 2048,
+        .packet_frames = 512,
+        .num_packets = 4,
+        .logger.func = slog_func,
+    });
     call_lua("init");
 }
 
@@ -353,6 +365,7 @@ static void cleanup(void)
 #ifdef MANE3D_HAS_SHDC
     shdc_shutdown();
 #endif
+    saudio_shutdown();
     sgl_shutdown();
     sg_shutdown();
     lua_close(L);
@@ -413,6 +426,10 @@ sapp_desc sokol_main(int argc, char *argv[])
     luaL_requiref(L, "sokol.gl", luaopen_sokol_gl, 0);
     lua_pop(L, 1);
     luaL_requiref(L, "sokol.debugtext", luaopen_sokol_debugtext, 0);
+    lua_pop(L, 1);
+    luaL_requiref(L, "sokol.audio", luaopen_sokol_audio, 0);
+    lua_pop(L, 1);
+    luaL_requiref(L, "sokol.shape", luaopen_sokol_shape, 0);
     lua_pop(L, 1);
     luaL_requiref(L, "mane3d.licenses", luaopen_mane3d_licenses, 0);
     lua_pop(L, 1);
@@ -517,6 +534,24 @@ sapp_desc sokol_main(int argc, char *argv[])
     int w = 1920;
     int h = 1080;
 #endif
+
+    // Check for config table with window size (like LÖVE2D's conf.lua)
+    lua_getglobal(L, "config");
+    if (lua_istable(L, -1)) {
+        lua_getfield(L, -1, "width");
+        if (lua_isinteger(L, -1)) {
+            w = (int)lua_tointeger(L, -1);
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "height");
+        if (lua_isinteger(L, -1)) {
+            h = (int)lua_tointeger(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+
     return (sapp_desc){
         .init_cb = init,
         .frame_cb = frame,

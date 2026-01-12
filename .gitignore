@@ -8,6 +8,7 @@ gen/
 
 # External assets (not licensed for redistribution)
 assets/
+!examples/hakonotaiatari/assets/
 
 # Python
 __pycache__/
