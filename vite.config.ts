@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
-import { readFileSync, existsSync, cpSync } from 'fs'
+import { readFileSync, existsSync, cpSync, copyFileSync } from 'fs'
 import { resolve } from 'path'
 
 export default defineConfig({
@@ -35,11 +35,25 @@ export default defineConfig({
             next()
           }
         })
+        // Dev: serve doc.json
+        server.middlewares.use('/doc.json', (_req, res, next) => {
+          const filePath = resolve(__dirname, 'doc.json')
+          if (existsSync(filePath)) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(readFileSync(filePath, 'utf-8'))
+          } else {
+            next()
+          }
+        })
       },
       closeBundle() {
-        // Build: copy examples/ and lib/ to dist/
+        // Build: copy examples/, lib/, and doc.json to dist/
         cpSync('examples', 'dist/examples', { recursive: true })
         cpSync('lib', 'dist/lib', { recursive: true })
+        if (existsSync('doc.json')) {
+          copyFileSync('doc.json', 'dist/doc.json')
+          console.log('Copied doc.json to dist/')
+        }
         console.log('Copied examples/ and lib/ to dist/')
       },
     },
