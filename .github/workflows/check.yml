@@ -1,0 +1,34 @@
+name: Check
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lua-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install clang++
+        run: sudo apt-get install -y clang
+
+      - name: Generate Lua bindings
+        run: python scripts/gen_lua.py
+
+      - name: Generate ImGui bindings
+        run: python scripts/gen_imgui.py deps/imgui/imgui.h gen/bindings/imgui_gen.cpp
+
+      - name: Setup Lua Language Server
+        run: |
+          curl -L https://github.com/LuaLS/lua-language-server/releases/download/3.16.4/lua-language-server-3.16.4-linux-x64.tar.gz | tar xz -C /tmp
+
+      - name: Run Lua check
+        run: /tmp/bin/lua-language-server --configpath .luarc.json --check .

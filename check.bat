@@ -14,6 +14,7 @@ if "%LUA_LS%"=="" (
 )
 
 echo Checking mane3d...
+"%LUA_LS%" --version
 "%LUA_LS%" --check "%~dp0."
 
 echo.

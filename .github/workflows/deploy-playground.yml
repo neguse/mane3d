@@ -7,7 +7,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -17,14 +17,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Cache build
-        uses: actions/cache@v4
-        with:
-          path: build
-          key: build-${{ runner.os }}-${{ hashFiles('deps/**', 'CMakeLists.txt', 'cmake/**') }}
-          restore-keys: |
-            build-${{ runner.os }}-
-
       - name: Install dependencies
         run: npm ci
 
@@ -33,17 +25,29 @@ jobs:
 
       - name: Setup emsdk
         uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '4.0.23'
+          actions-cache-folder: 'emsdk-cache'
 
       - name: Add clang to PATH
         run: echo "$EMSDK/upstream/bin" >> $GITHUB_PATH
 
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Configure
         run: |
-          rm -rf build/wasm-release/CMakeCache.txt build/wasm-release/CMakeFiles
-          emcmake cmake -G Ninja -B build/wasm-release -DCMAKE_BUILD_TYPE=Release
+          emcmake cmake -G Ninja -B build/wasm-release \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        env:
+          SCCACHE_GHA_ENABLED: "true"
 
       - name: Build WASM
-        run: cmake --build build/wasm-release
+        run: cmake --build build/wasm-release --parallel
+        env:
+          SCCACHE_GHA_ENABLED: "true"
 
       - name: Copy WASM to public
         run: |
