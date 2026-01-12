@@ -1,5 +1,7 @@
 # Måne3D
 
+![Måne3D](public/mane3d.png)
+
 A lightweight game framework for Lua 5.5 built on the Sokol ecosystem.
 
 ## What Works Now
