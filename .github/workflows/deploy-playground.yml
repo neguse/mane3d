@@ -1,7 +1,7 @@
 name: Deploy Playground
 on:
   push:
-    branches: [master, ci_improve]
+    branches: [master]
 
 jobs:
   deploy:
