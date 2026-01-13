@@ -78,7 +78,7 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
 
       - name: Build
-        run: cmake --build build/dummy-release
+        run: cmake --build build/dummy-release --parallel
         env:
           SCCACHE_GHA_ENABLED: "true"
 
