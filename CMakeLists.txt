@@ -431,7 +431,8 @@ if(MANE3D_BUILD_BC7ENC)
     if(MSVC)
         target_compile_options(bc7enc_lib PRIVATE /W0)
     else()
-        target_compile_options(bc7enc_lib PRIVATE -w)
+        # -w suppresses warnings, -include adds missing stdint.h for clang
+        target_compile_options(bc7enc_lib PRIVATE -w -include cstdint)
     endif()
 
     # Add Lua bindings
