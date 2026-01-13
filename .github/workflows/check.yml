@@ -78,5 +78,10 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
 
       - name: Test examples
-        run: ./scripts/run_tests.sh build/dummy-release 10
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmd //c "scripts\\run_tests.bat build\\dummy-release 10"
+          else
+            ./scripts/run_tests.sh build/dummy-release 10
+          fi
         shell: bash

@@ -40,7 +40,7 @@ for script in "${EXAMPLES[@]}"; do
     if [ -f "$script" ]; then
         echo "----------------------------------------"
         echo "Testing: $script"
-        if "./$TEST_RUNNER" "$script" "$NUM_FRAMES"; then
+        if "$TEST_RUNNER" "$script" "$NUM_FRAMES"; then
             ((PASSED++)) || true
         else
             echo "FAILED with exit code: $?"
