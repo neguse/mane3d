@@ -16,6 +16,7 @@ if not audio_ok then
 end
 if not audio_ok then
     log.warn("sokol.audio not available, audio disabled")
+    ---@diagnostic disable-next-line: cast-local-type
     audio = nil
 end
 
