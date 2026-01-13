@@ -15,7 +15,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install clang++
         run: sudo apt-get install -y clang
@@ -32,3 +32,60 @@ jobs:
 
       - name: Run Lua check
         run: /tmp/bin/lua-language-server --configpath .luarc.json --check .
+
+  headless-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: linux-dummy-release
+          - os: windows-latest
+            preset: win-dummy-release
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup cmake and ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install clang++ (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y clang
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        env:
+          CC: ${{ runner.os == 'Linux' && 'clang' || '' }}
+          CXX: ${{ runner.os == 'Linux' && 'clang++' || '' }}
+          SCCACHE_GHA_ENABLED: "true"
+
+      - name: Build
+        run: cmake --build build/dummy-release --parallel
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+
+      - name: Test examples
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmd //c "scripts\\run_tests.bat build\\dummy-release 10"
+          else
+            ./scripts/run_tests.sh build/dummy-release 10
+          fi
+        shell: bash

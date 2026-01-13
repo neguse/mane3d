@@ -1,9 +1,10 @@
 -- Simple Triangle - Basic rendering example
 local gfx = require("sokol.gfx")
 local glue = require("sokol.glue")
-local shdc = require("shdc")
+local shader = require("lib.shader")
 
 local pip, bind
+local shd
 local time = 0
 
 local shader_source = [[
@@ -41,23 +42,17 @@ void main() {
 ]]
 
 function init()
-    -- Compile shader
-    local result = shdc.compile(shader_source, "triangle", "wgsl")
-    if not result.success then
-        print("Shader compile error: " .. (result.error or "unknown"))
+    -- Compile shader using lib.shader (auto-detects backend language)
+    shd = shader.compile(shader_source, "triangle", {
+        {
+            stage = gfx.ShaderStage.VERTEX,
+            size = 16,  -- rotation (float) padded to 16 bytes
+        }
+    })
+    if not shd then
+        print("Shader compile error")
         return
     end
-
-    local shd = gfx.make_shader(gfx.ShaderDesc({
-        vertex_func = { source = result.vs_source },
-        fragment_func = { source = result.fs_source },
-        uniform_blocks = {
-            {
-                stage = gfx.ShaderStage.VERTEX,
-                size = 16,  -- rotation (float) padded to 16 bytes
-            }
-        }
-    }))
 
     pip = gfx.make_pipeline(gfx.PipelineDesc({
         shader = shd,
@@ -99,7 +94,7 @@ function frame()
 
     -- Pack uniform: rotation (float) padded to 16 bytes
     local uniform_data = string.pack("ffff", time, 0, 0, 0)
-    gfx.apply_uniforms(gfx.ShaderStage.VERTEX, gfx.Range(uniform_data))
+    gfx.apply_uniforms(0, gfx.Range(uniform_data))
 
     gfx.draw(0, 3, 1)
     gfx.end_pass()
