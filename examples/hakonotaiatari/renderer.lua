@@ -19,13 +19,18 @@ M.MODE_SHADED = 2
 local current_mode = M.MODE_WIREFRAME
 
 -- Graphics resources for shaded mode
-local shaded_shader = nil  ---@type any
-local shaded_pipeline = nil  ---@type any
-local shaded_vbuf = nil  ---@type any
-local shaded_ibuf = nil  ---@type any
+---@type gfx.Shader?
+local shaded_shader = nil
+---@type gfx.Pipeline?
+local shaded_pipeline = nil
+---@type gfx.Buffer?
+local shaded_vbuf = nil
+---@type gfx.Buffer?
+local shaded_ibuf = nil
 
 -- Graphics resources for wireframe mode (using sokol.gl)
-local wireframe_pipeline = nil  ---@type any
+---@type gl.Pipeline?
+local wireframe_pipeline = nil
 
 -- Gakugaku (wobble) state
 local gakugaku = 0.0
