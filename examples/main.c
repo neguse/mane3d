@@ -70,31 +70,12 @@ EM_JS(double, js_get_display_scale_y, (void), {
 });
 #endif
 
-/* declare luaopen functions from generated bindings */
-extern int luaopen_sokol_gfx(lua_State *L);
-extern int luaopen_sokol_app(lua_State *L);
-extern int luaopen_sokol_glue(lua_State *L);
-extern int luaopen_sokol_log(lua_State *L);
-extern int luaopen_sokol_time(lua_State *L);
-extern int luaopen_sokol_gl(lua_State *L);
-extern int luaopen_sokol_debugtext(lua_State *L);
-extern int luaopen_sokol_audio(lua_State *L);
-extern int luaopen_sokol_shape(lua_State *L);
-extern int luaopen_mane3d_licenses(lua_State *L);
-extern int luaopen_stb_image(lua_State *L);
+/* Shared Lua module registration */
+#include "mane3d_lua.h"
 
 #ifdef MANE3D_HAS_SHDC
-extern int luaopen_shdc(lua_State *L);
 extern void shdc_init(void);
 extern void shdc_shutdown(void);
-#endif
-
-#ifdef MANE3D_HAS_IMGUI
-extern int luaopen_imgui(lua_State *L);
-#endif
-
-#ifdef MANE3D_HAS_BC7ENC
-extern int luaopen_bc7enc(lua_State *L);
 #endif
 
 static lua_State *L = NULL;
@@ -442,45 +423,12 @@ sapp_desc sokol_main(int argc, char *argv[])
     lua_setglobal(L, "get_display_scale");
 #endif
 
-    /* Register generated sokol modules */
-    luaL_requiref(L, "sokol.gfx", luaopen_sokol_gfx, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.app", luaopen_sokol_app, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.glue", luaopen_sokol_glue, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.log", luaopen_sokol_log, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.time", luaopen_sokol_time, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.gl", luaopen_sokol_gl, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.debugtext", luaopen_sokol_debugtext, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.audio", luaopen_sokol_audio, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "sokol.shape", luaopen_sokol_shape, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "mane3d.licenses", luaopen_mane3d_licenses, 0);
-    lua_pop(L, 1);
-    luaL_requiref(L, "stb.image", luaopen_stb_image, 0);
-    lua_pop(L, 1);
-
 #ifdef MANE3D_HAS_SHDC
     shdc_init();
-    luaL_requiref(L, "shdc", luaopen_shdc, 0);
-    lua_pop(L, 1);
 #endif
 
-#ifdef MANE3D_HAS_IMGUI
-    luaL_requiref(L, "imgui", luaopen_imgui, 0);
-    lua_pop(L, 1);
-#endif
-
-#ifdef MANE3D_HAS_BC7ENC
-    luaL_requiref(L, "bc7enc", luaopen_bc7enc, 0);
-    lua_pop(L, 1);
-#endif
+    /* Register all sokol and mane3d modules */
+    mane3d_lua_register_all(L);
 
     /* Load script */
 #ifdef __EMSCRIPTEN__

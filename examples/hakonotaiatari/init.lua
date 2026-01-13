@@ -210,7 +210,6 @@ end
 -- Cleanup
 function cleanup()
     audio.cleanup()
-    renderer.cleanup()
-    gl.shutdown()
+    renderer.cleanup() -- gl.shutdown() is called inside
     log.info("hakonotaiatari cleanup complete")
 end

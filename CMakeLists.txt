@@ -31,6 +31,8 @@ option(MANE3D_BACKEND_GLES3 "Use OpenGL ES3 backend" OFF)
 option(MANE3D_BACKEND_D3D11 "Use Direct3D 11 backend" OFF)
 option(MANE3D_BACKEND_METAL "Use Metal backend" OFF)
 option(MANE3D_BACKEND_WGPU "Use WebGPU backend" OFF)
+option(MANE3D_BACKEND_DUMMY "Use Dummy backend for headless testing" OFF)
+option(MANE3D_BUILD_TESTS "Build test runner" OFF)
 
 # Lua 5.5
 if(MANE3D_USE_SYSTEM_LUA)
@@ -143,6 +145,7 @@ endif()
 set(MANE3D_SOURCES
     src/sokol_impl.c
     src/stb_image_lua.c
+    src/mane3d_lua.c
     ${MANE3D_GENERATED}
 )
 
@@ -168,7 +171,9 @@ target_include_directories(mane3d
 target_link_libraries(mane3d PUBLIC ${LUA_TARGET})
 
 # Backend selection for sokol_impl.c
-if(MANE3D_BACKEND_GL)
+if(MANE3D_BACKEND_DUMMY)
+    target_compile_definitions(mane3d PRIVATE SOKOL_DUMMY_BACKEND)
+elseif(MANE3D_BACKEND_GL)
     target_compile_definitions(mane3d PRIVATE SOKOL_GLCORE)
 elseif(MANE3D_BACKEND_GLES3)
     target_compile_definitions(mane3d PRIVATE SOKOL_GLES3)
@@ -194,7 +199,8 @@ else()
     endif()
 endif()
 
-# Platform-specific libraries
+# Platform-specific libraries (skip for DUMMY backend)
+if(NOT MANE3D_BACKEND_DUMMY)
 if(EMSCRIPTEN)
     # WebGPU via emdawnwebgpu port
     target_compile_options(mane3d PRIVATE --use-port=emdawnwebgpu)
@@ -237,6 +243,7 @@ elseif(UNIX)
         asound
     )
 endif()
+endif()
 
 # Lua interpreter (optional)
 option(MANE3D_BUILD_INTERPRETER "Build Lua interpreter" OFF)
@@ -269,7 +276,9 @@ if(MANE3D_BUILD_EXAMPLE)
     endif()
 
     # Backend defines for example
-    if(MANE3D_BACKEND_GL)
+    if(MANE3D_BACKEND_DUMMY)
+        target_compile_definitions(mane3d-example PRIVATE SOKOL_DUMMY_BACKEND)
+    elseif(MANE3D_BACKEND_GL)
         target_compile_definitions(mane3d-example PRIVATE SOKOL_GLCORE)
     elseif(MANE3D_BACKEND_GLES3)
         target_compile_definitions(mane3d-example PRIVATE SOKOL_GLES3)
@@ -360,7 +369,9 @@ if(MANE3D_BUILD_IMGUI)
     target_link_libraries(imgui_lib PUBLIC ${LUA_TARGET})
 
     # Backend defines for ImGui
-    if(MANE3D_BACKEND_GL)
+    if(MANE3D_BACKEND_DUMMY)
+        target_compile_definitions(imgui_lib PRIVATE SOKOL_DUMMY_BACKEND)
+    elseif(MANE3D_BACKEND_GL)
         target_compile_definitions(imgui_lib PRIVATE SOKOL_GLCORE)
     elseif(MANE3D_BACKEND_GLES3)
         target_compile_definitions(imgui_lib PRIVATE SOKOL_GLES3)
@@ -448,4 +459,45 @@ if(MANE3D_BUILD_SHDC)
     target_compile_definitions(mane3d PRIVATE MANE3D_HAS_SHDC)
     target_link_libraries(mane3d PUBLIC shdc_wrapper)
 
+endif()
+
+# Test runner (headless)
+if(MANE3D_BUILD_TESTS)
+    add_executable(mane3d-test tests/test_runner.c)
+    target_include_directories(mane3d-test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol
+        ${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol/util
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${LUA_INCLUDE}
+    )
+    target_link_libraries(mane3d-test mane3d)
+
+    # Backend defines for test runner
+    if(MANE3D_BACKEND_DUMMY)
+        target_compile_definitions(mane3d-test PRIVATE SOKOL_DUMMY_BACKEND)
+    elseif(MANE3D_BACKEND_GL)
+        target_compile_definitions(mane3d-test PRIVATE SOKOL_GLCORE)
+    elseif(MANE3D_BACKEND_GLES3)
+        target_compile_definitions(mane3d-test PRIVATE SOKOL_GLES3)
+    elseif(MANE3D_BACKEND_D3D11)
+        target_compile_definitions(mane3d-test PRIVATE SOKOL_D3D11)
+    elseif(MANE3D_BACKEND_METAL)
+        target_compile_definitions(mane3d-test PRIVATE SOKOL_METAL)
+    elseif(MANE3D_BACKEND_WGPU)
+        target_compile_definitions(mane3d-test PRIVATE SOKOL_WGPU)
+    else()
+        if(EMSCRIPTEN)
+            target_compile_definitions(mane3d-test PRIVATE SOKOL_WGPU)
+        elseif(WIN32)
+            target_compile_definitions(mane3d-test PRIVATE SOKOL_D3D11)
+        elseif(APPLE)
+            target_compile_definitions(mane3d-test PRIVATE SOKOL_METAL)
+        else()
+            target_compile_definitions(mane3d-test PRIVATE SOKOL_GLCORE)
+        endif()
+    endif()
+
+    if(MANE3D_BUILD_SHDC)
+        target_compile_definitions(mane3d-test PRIVATE MANE3D_HAS_SHDC)
+    endif()
 endif()

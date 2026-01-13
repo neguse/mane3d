@@ -32,3 +32,54 @@ jobs:
 
       - name: Run Lua check
         run: /tmp/bin/lua-language-server --configpath .luarc.json --check .
+
+  headless-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: linux-dummy-release
+          - os: windows-latest
+            preset: win-dummy-release
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y ninja-build
+
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja
+
+      - name: Install clang++ (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y clang
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build build/dummy-release
+
+      - name: Test examples
+        shell: bash
+        run: |
+          set -e
+          for script in examples/main.lua examples/breakout.lua examples/raytracer.lua examples/lighting.lua examples/triangle.lua examples/hakonotaiatari/init.lua examples/rendering/init.lua; do
+            if [ -f "$script" ]; then
+              echo "Testing $script"
+              ./build/dummy-release/mane3d-test "$script" 10
+            fi
+          done

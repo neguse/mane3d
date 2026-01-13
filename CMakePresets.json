@@ -146,6 +146,62 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
+    },
+    {
+      "name": "linux-dummy-debug",
+      "displayName": "Linux Dummy Debug (Headless)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dummy-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MANE3D_BACKEND_DUMMY": "ON",
+        "MANE3D_BUILD_TESTS": "ON",
+        "MANE3D_BUILD_SHDC": "ON",
+        "MANE3D_BUILD_IMGUI": "OFF",
+        "MANE3D_BUILD_EXAMPLE": "OFF"
+      }
+    },
+    {
+      "name": "linux-dummy-release",
+      "displayName": "Linux Dummy Release (Headless)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dummy-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MANE3D_BACKEND_DUMMY": "ON",
+        "MANE3D_BUILD_TESTS": "ON",
+        "MANE3D_BUILD_SHDC": "ON",
+        "MANE3D_BUILD_IMGUI": "OFF",
+        "MANE3D_BUILD_EXAMPLE": "OFF"
+      }
+    },
+    {
+      "name": "win-dummy-debug",
+      "displayName": "Windows Dummy Debug (Headless)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dummy-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MANE3D_BACKEND_DUMMY": "ON",
+        "MANE3D_BUILD_TESTS": "ON",
+        "MANE3D_BUILD_SHDC": "ON",
+        "MANE3D_BUILD_IMGUI": "OFF",
+        "MANE3D_BUILD_EXAMPLE": "OFF"
+      }
+    },
+    {
+      "name": "win-dummy-release",
+      "displayName": "Windows Dummy Release (Headless)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dummy-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MANE3D_BACKEND_DUMMY": "ON",
+        "MANE3D_BUILD_TESTS": "ON",
+        "MANE3D_BUILD_SHDC": "ON",
+        "MANE3D_BUILD_IMGUI": "OFF",
+        "MANE3D_BUILD_EXAMPLE": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -194,6 +250,22 @@
     {
       "name": "wasm-debug",
       "configurePreset": "wasm-debug"
+    },
+    {
+      "name": "linux-dummy-debug",
+      "configurePreset": "linux-dummy-debug"
+    },
+    {
+      "name": "linux-dummy-release",
+      "configurePreset": "linux-dummy-release"
+    },
+    {
+      "name": "win-dummy-debug",
+      "configurePreset": "win-dummy-debug"
+    },
+    {
+      "name": "win-dummy-release",
+      "configurePreset": "win-dummy-release"
     }
   ]
 }

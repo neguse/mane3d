@@ -256,13 +256,76 @@ def get_result_type(decl):
     decl_type = decl['type']
     return decl_type[:decl_type.index('(')].strip()
 
+def get_dummy_return_value(result_type, prefix):
+    """Get a dummy return value for SOKOL_DUMMY_BACKEND"""
+    if result_type == 'void':
+        return None
+    elif result_type == 'bool':
+        return 'false'
+    elif is_int_type(result_type):
+        return '0'
+    elif is_float_type(result_type):
+        return '0.0f' if result_type == 'float' else '0.0'
+    elif util.is_string_ptr(result_type):
+        return '""'
+    elif is_struct_type(result_type):
+        return f'({result_type}){{0}}'
+    elif is_enum_type(result_type):
+        return '0'
+    elif util.is_void_ptr(result_type) or util.is_const_void_ptr(result_type):
+        return 'NULL'
+    else:
+        return '0'
+
+# Modules that need dummy backend support (window/platform dependent)
+dummy_backend_modules = ['sapp_', 'sglue_', 'saudio_']
+
+# Special dummy return values for specific functions
+dummy_special_returns = {
+    'sglue_swapchain': '''(sg_swapchain){
+        .width = 640,
+        .height = 480,
+        .sample_count = 1,
+        .color_format = SG_PIXELFORMAT_RGBA8,
+        .depth_format = SG_PIXELFORMAT_DEPTH_STENCIL,
+    }''',
+    'sapp_width': '640',
+    'sapp_height': '480',
+    'sapp_widthf': '640.0f',
+    'sapp_heightf': '480.0f',
+    'sapp_dpi_scale': '1.0f',
+    'sapp_frame_duration': '1.0/60.0',
+}
+
 def gen_func_wrapper(decl, prefix):
     """Generate a Lua C API wrapper function"""
     func_name = decl['name']
     lua_name = as_snake_case(func_name, prefix)
     result_type = get_result_type(decl)
+    needs_dummy = prefix in dummy_backend_modules
 
     l(f'static int l_{func_name}(lua_State *L) {{')
+
+    if needs_dummy:
+        l('#ifdef SOKOL_DUMMY_BACKEND')
+        # Generate dummy implementation
+        l(f'    (void)L; /* unused in dummy mode */')
+        if result_type == 'void':
+            l('    return 0;')
+        else:
+            # Check for special return value first
+            if func_name in dummy_special_returns:
+                dummy_val = dummy_special_returns[func_name]
+            else:
+                dummy_val = get_dummy_return_value(result_type, prefix)
+            l(f'    {result_type} result = {dummy_val};')
+            push_code = get_lua_push_code(result_type, 'result', prefix)
+            if push_code:
+                l(f'    {push_code}')
+                l('    return 1;')
+            else:
+                l('    return 0;')
+        l('#else')
 
     # Get parameters from Lua stack
     arg_names = []
@@ -286,6 +349,9 @@ def gen_func_wrapper(decl, prefix):
             l('    return 1;')
         else:
             l('    return 0;')
+
+    if needs_dummy:
+        l('#endif')
 
     l('}')
     l('')
