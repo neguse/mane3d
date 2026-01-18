@@ -1,5 +1,6 @@
 -- Simple Triangle - Basic rendering example
 local gfx = require("sokol.gfx")
+local app = require("sokol.app")
 local glue = require("sokol.glue")
 local shader = require("lib.shader")
 
@@ -41,7 +42,12 @@ void main() {
 @program triangle vs fs
 ]]
 
-function init()
+local function init_game()
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
+
     -- Compile shader using lib.shader (auto-detects backend language)
     shd = shader.compile(shader_source, "triangle", {
         {
@@ -76,7 +82,7 @@ function init()
     }
 end
 
-function frame()
+local function update_frame()
     time = time + 1/60
 
     gfx.begin_pass(gfx.Pass({
@@ -101,5 +107,23 @@ function frame()
     gfx.commit()
 end
 
-function cleanup() end
-function event(ev) end
+local function cleanup_game()
+    gfx.shutdown()
+end
+
+local function handle_event(ev)
+    if ev.type == app.EventType.KEY_DOWN and ev.key_code == app.Keycode.Q then
+        app.quit()
+    end
+end
+
+-- Run the application
+app.run(app.Desc({
+    width = 800,
+    height = 600,
+    window_title = "Mane3D - Simple Triangle",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

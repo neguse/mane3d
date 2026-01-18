@@ -70,12 +70,34 @@ static int l_get_mtime(lua_State *L)
     return 1;
 }
 
+/* Write float array to lightuserdata buffer (for audio stream_cb) */
+static int l_write_floats(lua_State *L)
+{
+    float* buffer = (float*)lua_touserdata(L, 1);
+    if (!buffer) return luaL_error(L, "buffer is nil");
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    int len = (int)luaL_len(L, 2);
+
+    for (int i = 0; i < len; i++) {
+        lua_rawgeti(L, 2, i + 1);
+        buffer[i] = (float)lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+    return 0;
+}
+
 void mane3d_lua_register_all(lua_State *L)
 {
     luaL_requiref(L, "sokol.gfx", luaopen_sokol_gfx, 0);
     lua_pop(L, 1);
+#ifdef SOKOL_DUMMY_BACKEND
+    /* headless: use Lua-based headless_app as sokol.app */
+    luaL_dostring(L, "package.preload['sokol.app'] = function() return require('lib.headless_app') end");
+#else
     luaL_requiref(L, "sokol.app", luaopen_sokol_app, 0);
     lua_pop(L, 1);
+#endif
     luaL_requiref(L, "sokol.glue", luaopen_sokol_glue, 0);
     lua_pop(L, 1);
     luaL_requiref(L, "sokol.log", luaopen_sokol_log, 0);
@@ -98,6 +120,10 @@ void mane3d_lua_register_all(lua_State *L)
     /* Export get_mtime to Lua for hot reload */
     lua_pushcfunction(L, l_get_mtime);
     lua_setglobal(L, "get_mtime");
+
+    /* Export write_floats for audio stream_cb */
+    lua_pushcfunction(L, l_write_floats);
+    lua_setglobal(L, "write_floats");
 
 #ifdef MANE3D_HAS_SHDC
     luaL_requiref(L, "shdc", luaopen_shdc, 0);

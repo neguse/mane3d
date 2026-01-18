@@ -1,5 +1,6 @@
 -- ImGui test example (using auto-generated snake_case API)
 local gfx = require("sokol.gfx")
+local app = require("sokol.app")
 local glue = require("sokol.glue")
 local imgui = require("imgui")
 
@@ -9,11 +10,16 @@ local slider_val = 0.5
 local checkbox_val = true
 local color = { 0.4, 0.7, 1.0 }
 
-function init()
+local function init_game()
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
+
     imgui.setup()
 end
 
-function frame()
+local function update_frame()
     imgui.new_frame()
 
     -- Main debug window
@@ -57,10 +63,22 @@ function frame()
     gfx.commit()
 end
 
-function event(ev)
+local function handle_event(ev)
     imgui.handle_event(ev)
 end
 
-function cleanup()
+local function cleanup_game()
     imgui.shutdown()
+    gfx.shutdown()
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 800,
+    height = 600,
+    window_title = "Mane3D - ImGui Test",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

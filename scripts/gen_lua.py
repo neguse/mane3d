@@ -16,6 +16,12 @@ parser.add_argument('--sokol', default=os.path.join(root_dir, 'deps/sokol'),
                     help='Path to sokol directory (for headers)')
 args = parser.parse_args()
 
+# Add CLANGPP directory to PATH for gen_ir.py (which uses clang)
+clangpp = os.environ.get('CLANGPP')
+if clangpp:
+    clang_dir = os.path.dirname(clangpp)
+    os.environ['PATH'] = clang_dir + os.pathsep + os.environ.get('PATH', '')
+
 # Add bindgen to path for gen_ir and gen_util
 sys.path.insert(0, args.bindgen)
 import gen_ir
@@ -85,10 +91,9 @@ ignores = [
 ]
 
 # Functions that use callbacks - need special handling
-callback_funcs = [
-    'sapp_run',
-    'saudio_setup',
-]
+# Note: sapp_run is now supported via callback trampolines
+# Note: saudio_setup is now supported (stream_cb trampoline implemented)
+callback_funcs = []
 
 struct_types = []
 enum_types = []
@@ -186,6 +191,15 @@ def is_struct_ptr(s):
             return True
     return False
 
+def parse_func_ptr(field_type):
+    """Parse a function pointer type and return (result_type, args_list)"""
+    if '(*)' not in field_type:
+        return None, []
+    result_type = field_type[:field_type.index('(*)')].strip()
+    args_str = field_type[field_type.index('(*)')+4:-1]
+    args = [arg.strip() for arg in args_str.split(',') if arg.strip() and arg.strip() != 'void']
+    return result_type, args
+
 def get_lua_push_code(type_str, var_name, prefix):
     """Generate code to push a C value onto the Lua stack"""
     if type_str == 'void':
@@ -248,6 +262,16 @@ def get_lua_to_code(type_str, arg_index, var_name, prefix):
         return f'void* {var_name} = lua_touserdata(L, {arg_index});'
     elif util.is_const_void_ptr(type_str):
         return f'const void* {var_name} = lua_touserdata(L, {arg_index});'
+    elif type_str == 'const float *' or type_str == 'const float*':
+        # Accept string as binary float data or lightuserdata
+        return f'''const float* {var_name};
+    if (lua_isstring(L, {arg_index})) {{
+        {var_name} = (const float*)lua_tostring(L, {arg_index});
+    }} else {{
+        {var_name} = (const float*)lua_touserdata(L, {arg_index});
+    }}'''
+    elif type_str == 'float *' or type_str == 'float*':
+        return f'float* {var_name} = (float*)lua_touserdata(L, {arg_index});'
     else:
         return f'/* TODO: get {type_str} */ void* {var_name} = NULL;'
 
@@ -282,6 +306,13 @@ dummy_backend_modules = ['sapp_', 'sglue_', 'saudio_']
 
 # Special dummy return values for specific functions
 dummy_special_returns = {
+    'sglue_environment': '''(sg_environment){
+        .defaults = {
+            .color_format = SG_PIXELFORMAT_RGBA8,
+            .depth_format = SG_PIXELFORMAT_DEPTH_STENCIL,
+            .sample_count = 1,
+        },
+    }''',
     'sglue_swapchain': '''(sg_swapchain){
         .width = 640,
         .height = 480,
@@ -353,6 +384,106 @@ def gen_func_wrapper(decl, prefix):
     if needs_dummy:
         l('#endif')
 
+    l('}')
+    l('')
+
+def get_callback_arg_push_code(arg_type, var_name, prefix, unique_suffix=''):
+    """Generate code to push a callback argument onto the Lua stack"""
+    ud_name = f'ud_{unique_suffix}' if unique_suffix else 'ud'
+    # For const struct pointers, push a copy of the struct
+    if is_const_struct_ptr(arg_type):
+        inner_type = util.extract_ptr_type(arg_type)
+        struct_name = as_struct_metatable_name(inner_type)
+        return [
+            f'{inner_type}* {ud_name} = ({inner_type}*)lua_newuserdatauv(L, sizeof({inner_type}), 0);',
+            f'*{ud_name} = *{var_name};',
+            f'luaL_setmetatable(L, "sokol.{struct_name}");'
+        ]
+    # For non-const struct pointers, push directly
+    elif is_struct_ptr(arg_type):
+        inner_type = util.extract_ptr_type(arg_type)
+        struct_name = as_struct_metatable_name(inner_type)
+        return [
+            f'{inner_type}* {ud_name} = ({inner_type}*)lua_newuserdatauv(L, sizeof({inner_type}), 0);',
+            f'*{ud_name} = *{var_name};',
+            f'luaL_setmetatable(L, "sokol.{struct_name}");'
+        ]
+    # For primitive types
+    clean_type = arg_type.replace('const ', '').strip()
+    if clean_type == 'bool':
+        return [f'lua_pushboolean(L, {var_name});']
+    elif is_int_type(clean_type):
+        return [f'lua_pushinteger(L, (lua_Integer){var_name});']
+    elif is_float_type(clean_type):
+        return [f'lua_pushnumber(L, (lua_Number){var_name});']
+    elif util.is_string_ptr(clean_type):
+        return [f'lua_pushstring(L, {var_name});']
+    elif util.is_void_ptr(clean_type) or util.is_const_void_ptr(clean_type):
+        return [f'lua_pushlightuserdata(L, (void*){var_name});']
+    # For any other pointer types (float*, int*, etc.), push as lightuserdata
+    elif '*' in clean_type:
+        return [f'lua_pushlightuserdata(L, (void*){var_name});']
+    return [f'lua_pushnil(L); /* TODO: push {arg_type} */']
+
+def gen_callback_trampoline(c_struct_name, field_name, field_type, prefix):
+    """Generate a trampoline function for a callback field"""
+    result_type, args = parse_func_ptr(field_type)
+    if result_type is None:
+        return
+
+    # Global reference variable (lua_State is generated once per struct in gen_struct_bindings)
+    l(f'static int g_{c_struct_name}_{field_name}_ref = LUA_NOREF;')
+    l('')
+
+    # Trampoline function signature
+    if args:
+        c_args = ', '.join([f'{arg} arg{i}' for i, arg in enumerate(args)])
+    else:
+        c_args = 'void'
+    l(f'static {result_type} trampoline_{c_struct_name}_{field_name}({c_args}) {{')
+
+    # Early return with default value for callbacks with return values
+    if result_type != 'void':
+        default_val = get_dummy_return_value(result_type, prefix)
+        l(f'    if (g_{c_struct_name}_{field_name}_ref == LUA_NOREF) return {default_val};')
+    else:
+        l(f'    if (g_{c_struct_name}_{field_name}_ref == LUA_NOREF) return;')
+
+    l(f'    lua_State* L = g_{c_struct_name}_L;')
+    l(f'    lua_rawgeti(L, LUA_REGISTRYINDEX, g_{c_struct_name}_{field_name}_ref);')
+
+    # Push arguments to Lua stack
+    for i, arg in enumerate(args):
+        push_lines = get_callback_arg_push_code(arg, f'arg{i}', prefix, f'cb_{i}')
+        for line in push_lines:
+            l(f'    {line}')
+
+    # lua_pcall - get return value if needed
+    if result_type != 'void':
+        l(f'    if (lua_pcall(L, {len(args)}, 1, 0) != LUA_OK) {{')
+        l(f'        slog_func("callback", 0, 0, lua_tostring(L, -1), 0, "{field_name}", 0);')
+        l(f'        lua_pop(L, 1);')
+        default_val = get_dummy_return_value(result_type, prefix)
+        l(f'        return {default_val};')
+        l(f'    }}')
+        # Convert return value
+        if result_type == 'bool':
+            l(f'    {result_type} ret = lua_toboolean(L, -1);')
+        elif is_int_type(result_type):
+            l(f'    {result_type} ret = ({result_type})lua_tointeger(L, -1);')
+        elif is_float_type(result_type):
+            l(f'    {result_type} ret = ({result_type})lua_tonumber(L, -1);')
+        elif util.is_void_ptr(result_type):
+            l(f'    {result_type} ret = lua_touserdata(L, -1);')
+        else:
+            l(f'    {result_type} ret = ({result_type}){{0}}; /* TODO: unsupported return type */')
+        l(f'    lua_pop(L, 1);')
+        l(f'    return ret;')
+    else:
+        l(f'    if (lua_pcall(L, {len(args)}, 0, 0) != LUA_OK) {{')
+        l(f'        slog_func("callback", 0, 0, lua_tostring(L, -1), 0, "{field_name}", 0);')
+        l(f'        lua_pop(L, 1);')
+        l(f'    }}')
     l('}')
     l('')
 
@@ -449,6 +580,18 @@ def gen_struct_new(struct_name, c_struct_name, fields, prefix):
         field_name = field['name']
         field_type = field['type']
         if util.is_func_ptr(field_type):
+            # Skip variadic callbacks (e.g., logger.func with "...")
+            if '...' in field_type:
+                continue
+            # Generate callback field setup
+            l(f'        lua_getfield(L, 1, "{field_name}");')
+            l(f'        if (lua_isfunction(L, -1)) {{')
+            l(f'            g_{c_struct_name}_{field_name}_ref = luaL_ref(L, LUA_REGISTRYINDEX);')
+            l(f'            g_{c_struct_name}_L = L;')
+            l(f'            ud->{field_name} = trampoline_{c_struct_name}_{field_name};')
+            l(f'        }} else {{')
+            l(f'            lua_pop(L, 1);')
+            l(f'        }}')
             continue
         if util.is_1d_array_type(field_type):
             gen_array_field_init(field_name, field_type, prefix)
@@ -641,6 +784,18 @@ def gen_struct_bindings(decl, prefix):
     struct_name = as_pascal_case(c_struct_name, prefix)
     fields = [f for f in decl['fields'] if 'name' in f]
 
+    # Check if struct has any callback fields
+    callback_fields = [f for f in fields if util.is_func_ptr(f['type']) and '...' not in f['type']]
+
+    # Generate shared lua_State variable for callbacks (once per struct)
+    if callback_fields:
+        l(f'static lua_State* g_{c_struct_name}_L = NULL;')
+        l('')
+
+    # Generate callback trampolines (before constructor)
+    for field in callback_fields:
+        gen_callback_trampoline(c_struct_name, field['name'], field['type'], prefix)
+
     # Generate constructor
     gen_struct_new(struct_name, c_struct_name, fields, prefix)
 
@@ -747,6 +902,10 @@ def gen_metatable_registration(structs, prefix):
     l('}')
     l('')
 
+lua_keywords = {'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for',
+                'function', 'goto', 'if', 'in', 'local', 'nil', 'not', 'or',
+                'repeat', 'return', 'then', 'true', 'until', 'while'}
+
 def gen_luaopen(module_name, prefix, funcs, structs, enums, consts_ids):
     """Generate the luaopen function"""
     l(f'static const luaL_Reg {module_name}_funcs[] = {{')
@@ -756,6 +915,9 @@ def gen_luaopen(module_name, prefix, funcs, structs, enums, consts_ids):
         func_name = func_decl['name']
         lua_name = as_snake_case(func_name, prefix)
         l(f'    {{"{lua_name}", l_{func_name}}},')
+        # Add underscore-suffixed alias for Lua reserved keywords
+        if lua_name in lua_keywords:
+            l(f'    {{"{lua_name}_", l_{func_name}}},')
 
     # Add struct constructors
     for struct_decl in structs:
@@ -1023,11 +1185,6 @@ def gen_luacats_types(inp, prefix, module_name):
         lines.append('}')
         lines.append('')
 
-    # Lua reserved keywords
-    lua_keywords = {'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for',
-                    'function', 'goto', 'if', 'in', 'local', 'nil', 'not', 'or',
-                    'repeat', 'return', 'then', 'true', 'until', 'while'}
-
     # Generate function types
     for func_decl in funcs:
         if is_callback_func(func_decl['name']):
@@ -1052,6 +1209,8 @@ def gen_luacats_types(inp, prefix, module_name):
         param_names = ', '.join(p['name'] for p in params)
         if func_name in lua_keywords:
             lines.append(f'{module_name}["{func_name}"] = function({param_names}) end')
+            # Add underscore-suffixed alias for reserved keywords
+            lines.append(f'function {module_name}.{func_name}_({param_names}) end')
         else:
             lines.append(f'function {module_name}.{func_name}({param_names}) end')
         lines.append('')

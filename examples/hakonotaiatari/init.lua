@@ -2,13 +2,6 @@
 -- A 2D action game ported from C++ to mane3d
 -- https://github.com/neguse/hakonotaiatari
 
--- Window configuration (read before init)
--- Note: Disabled for WASM compatibility (uses canvas size instead)
--- config = {
---     width = 240,
---     height = 240,
--- }
-
 local gfx = require("sokol.gfx")
 local app = require("sokol.app")
 local gl = require("sokol.gl")
@@ -39,8 +32,13 @@ local last_score = 0
 local time_accumulator = 0 -- For fixed timestep
 
 -- Initialize game
-function init()
+local function init_game()
     log.info("hakonotaiatari starting...")
+
+    -- Initialize sokol.gfx (required for Lua entry point)
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
 
     -- Initialize sokol.gl
     gl.setup(gl.Desc({
@@ -74,7 +72,7 @@ function init()
 end
 
 -- Frame update and render
-function frame()
+local function update_frame()
     local frame_dt = app.frame_duration()
     local fixed_dt = const.DELTA_T -- 1/60 sec
 
@@ -193,7 +191,7 @@ function frame()
 end
 
 -- Handle events
-function event(ev)
+local function handle_event(ev)
     -- Pass to input handler
     input.handle_event(ev)
 
@@ -209,8 +207,21 @@ function event(ev)
 end
 
 -- Cleanup
-function cleanup()
+local function cleanup_game()
     audio.cleanup()
     renderer.cleanup() -- gl.shutdown() is called inside
+    gfx.shutdown()
     log.info("hakonotaiatari cleanup complete")
 end
+
+-- Run the application (Lua entry point)
+app.run(app.Desc({
+    width = 800,
+    height = 800,
+    window_title = "hakonotaiatari",
+    high_dpi = true,
+    init_cb = init_game,
+    frame_cb = update_frame,
+    event_cb = handle_event,
+    cleanup_cb = cleanup_game,
+}))
