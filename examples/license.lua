@@ -7,7 +7,12 @@ local licenses = require("mane3d.licenses")
 
 local license_text = ""
 
-function init()
+local function init_game()
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
+
     imgui.setup()
 
     -- Build license text
@@ -28,7 +33,7 @@ function init()
     license_text = table.concat(parts)
 end
 
-function frame()
+local function update_frame()
     local w = app.width()
     local h = app.height()
 
@@ -57,10 +62,22 @@ function frame()
     gfx.commit()
 end
 
-function cleanup()
+local function cleanup_game()
     imgui.shutdown()
+    gfx.shutdown()
 end
 
-function event(ev)
+local function handle_event(ev)
     imgui.handle_event(ev)
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 1024,
+    height = 768,
+    window_title = "Mane3D - Licenses",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

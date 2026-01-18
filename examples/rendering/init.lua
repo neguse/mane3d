@@ -398,7 +398,12 @@ local function load_model()
     log.info("Loaded " .. #meshes .. " meshes")
 end
 
-function init()
+local function init_game()
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
+
     log.info("Rendering Pipeline init")
     imgui.setup()
     notify.setup()
@@ -416,7 +421,7 @@ function init()
     load_model()
 end
 
-function frame()
+local function update_frame()
     hotreload.update()
 
     local width, height = app.width(), app.height()
@@ -451,7 +456,7 @@ function frame()
     pipeline.execute(ctx, frame_data)
 end
 
-function cleanup()
+local function cleanup_game()
     imgui.shutdown()
     notify.shutdown()
 
@@ -487,9 +492,10 @@ function cleanup()
     default_specular = nil
 
     log.info("cleanup")
+    gfx.shutdown()
 end
 
-function event(ev)
+local function handle_event(ev)
     if imgui.handle_event(ev) then
         return
     end
@@ -502,3 +508,14 @@ function event(ev)
         app.request_quit()
     end
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 1280,
+    height = 720,
+    window_title = "Mane3D - Rendering Pipeline",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

@@ -57,8 +57,13 @@ void main() {
 @program simple vs fs
 ]]
 
-function init()
+local function init_game()
     log.info("Simple triangle example init")
+
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
 
     -- Setup ImGui
     imgui.setup()
@@ -113,7 +118,7 @@ function init()
     log.info("init() complete")
 end
 
-function frame()
+local function update_frame()
     imgui.new_frame()
 
     -- Update rotation
@@ -182,12 +187,13 @@ function frame()
     gfx.commit()
 end
 
-function cleanup()
+local function cleanup_game()
     imgui.shutdown()
+    gfx.shutdown()
     log.info("cleanup")
 end
 
-function event(ev)
+local function handle_event(ev)
     -- Let ImGui handle events first
     if imgui.handle_event(ev) then
         return
@@ -200,3 +206,14 @@ function event(ev)
         end
     end
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 800,
+    height = 600,
+    window_title = "Mane3D - Simple Triangle with ImGui",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

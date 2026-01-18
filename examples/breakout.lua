@@ -173,8 +173,13 @@ local function init_blocks()
     end
 end
 
-function init()
+local function init_game()
     log.info("3D Block Breaker starting...")
+
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
 
     -- Compile shader with uniform block (2 mat4 + 1 vec4 = 144 bytes)
     shader = shaderMod.compile(shader_source, "breakout", {
@@ -235,7 +240,7 @@ function init()
     log.info(string.format("Game initialized with %d blocks", #blocks))
 end
 
-local function update_game(dt)
+local function update_game_logic(dt)
     if game_over then return end
 
     -- Update ball position
@@ -339,7 +344,7 @@ local function draw_cube(proj, view, pos, scale, color)
     gfx.draw(0, 36, 1)
 end
 
-function frame()
+local function update_frame()
     t = t + 1.0 / 60.0
     local dt = 1.0 / 60.0
 
@@ -357,7 +362,7 @@ function frame()
     local max_x = FIELD_WIDTH/2 - PADDLE_WIDTH/2
     paddle_x = glm.clamp(paddle_x, -max_x, max_x)
 
-    update_game(dt)
+    update_game_logic(dt)
 
     -- Camera setup
     local aspect = app.widthf() / app.heightf()
@@ -414,10 +419,11 @@ function frame()
     gfx.commit()
 end
 
-function cleanup()
+local function cleanup_game()
+    gfx.shutdown()
 end
 
-function event(ev)
+local function handle_event(ev)
     if ev.type == app.EventType.KEY_DOWN then
         keys_down[ev.key_code] = true
         if ev.key_code == app.Keycode.Q then
@@ -437,3 +443,14 @@ function event(ev)
         keys_down[ev.key_code] = false
     end
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 800,
+    height = 600,
+    window_title = "Mane3D - 3D Breakout",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

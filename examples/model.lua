@@ -241,7 +241,12 @@ end
 local default_diffuse_view, default_diffuse_smp
 local default_normal_view, default_normal_smp
 
-function init()
+local function init_game()
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
+
     log.info("Model loading example init")
 
     -- Create default textures
@@ -383,7 +388,7 @@ function init()
 end
 
 local frame_count = 0
-function frame()
+local function update_frame()
     frame_count = frame_count + 1
     if frame_count == 1 then
         log.info("First frame!")
@@ -463,7 +468,7 @@ function frame()
 end
 
 local event_logged = false
-function event(ev)
+local function handle_event(ev)
     if not event_logged then
         log.info("Lua event() called!")
         event_logged = true
@@ -511,7 +516,7 @@ function event(ev)
     end
 end
 
-function cleanup()
+local function cleanup_game()
     -- Destroy cached textures
     for _, tex in pairs(textures_cache) do
         tex.smp:destroy()
@@ -521,4 +526,16 @@ function cleanup()
     textures_cache = {}
 
     log.info("Model cleanup")
+    gfx.shutdown()
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 1024,
+    height = 768,
+    window_title = "Mane3D - Model Loading",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

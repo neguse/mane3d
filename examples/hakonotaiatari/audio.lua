@@ -215,16 +215,16 @@ local function audio_callback()
     end
     playing = still_playing
 
-    -- Clamp and push to audio device
-    local frames = {}
+    -- Clamp and pack to binary float data
+    local float_data = {}
     for i = 1, num_frames do
         local sample = mix_buffer[i]
         if sample > 1 then sample = 1 elseif sample < -1 then sample = -1 end
-        table.insert(frames, sample)
+        table.insert(float_data, string.pack("f", sample))
     end
 
-    if #frames > 0 then
-        audio.push(frames, #frames)
+    if #float_data > 0 then
+        audio.push(table.concat(float_data), num_frames)
     end
 end
 
@@ -243,7 +243,15 @@ function M.init()
         return false
     end
 
-    -- Audio is already set up in C (main.c)
+    -- Initialize sokol.audio from Lua
+    audio.setup(audio.Desc({
+        sample_rate = SAMPLE_RATE,
+        num_channels = NUM_CHANNELS,
+        buffer_frames = BUFFER_FRAMES,
+        packet_frames = PACKET_FRAMES,
+        num_packets = 4,
+    }))
+
     if not audio.isvalid() then
         log.error("Failed to initialize audio")
         return false
@@ -276,7 +284,9 @@ end
 
 -- Cleanup audio system
 function M.cleanup()
-    -- Audio shutdown is handled in C (main.c)
+    if audio and initialized then
+        audio.shutdown()
+    end
     initialized = false
     sounds = {}
     playing = {}

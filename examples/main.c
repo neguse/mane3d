@@ -1,4 +1,6 @@
-/* mane3d example: runs a Lua script with sokol bindings */
+/* mane3d example: runs a Lua script with sokol bindings
+ * Lua controls entry point - scripts call app.run() directly
+ */
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
@@ -16,6 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -81,7 +87,6 @@ extern void shdc_shutdown(void);
 static lua_State *L = NULL;
 static char g_script_path[512] = {0};
 static char g_script_dir[512] = {0};
-static time_t g_script_mtime = 0;
 
 /* Extract directory from path */
 static void extract_dir(const char *path, char *dir, size_t dir_size)
@@ -105,8 +110,6 @@ static void extract_dir(const char *path, char *dir, size_t dir_size)
     }
 }
 
-static void call_lua(const char *func);
-
 static time_t get_file_mtime(const char *path)
 {
     struct stat st;
@@ -124,37 +127,6 @@ static int l_get_mtime(lua_State *L)
     time_t mtime = get_file_mtime(path);
     lua_pushinteger(L, (lua_Integer)mtime);
     return 1;
-}
-
-static void reload_script(void)
-{
-    slog_func("lua", 3, 0, "Reloading script...", 0, g_script_path, 0);
-
-    /* Call cleanup */
-    call_lua("cleanup");
-
-    /* Clear globals */
-    lua_pushnil(L);
-    lua_setglobal(L, "init");
-    lua_pushnil(L);
-    lua_setglobal(L, "frame");
-    lua_pushnil(L);
-    lua_setglobal(L, "cleanup");
-    lua_pushnil(L);
-    lua_setglobal(L, "event");
-
-    /* Reload script */
-    if (luaL_dofile(L, g_script_path) != LUA_OK)
-    {
-        slog_func("lua", 0, 0, lua_tostring(L, -1), 0, g_script_path, 0);
-        lua_pop(L, 1);
-        return;
-    }
-
-    g_script_mtime = get_file_mtime(g_script_path);
-
-    /* Call init */
-    call_lua("init");
 }
 
 #ifdef __EMSCRIPTEN__
@@ -305,109 +277,9 @@ static void setup_fetch_searcher(lua_State *L)
 }
 #endif
 
-static void call_lua(const char *func)
+static int mane3d_main(int argc, char *argv[])
 {
-    lua_getglobal(L, func);
-    if (lua_isfunction(L, -1))
-    {
-        if (lua_pcall(L, 0, 0, 0) != LUA_OK)
-        {
-            slog_func("lua", 0, 0, lua_tostring(L, -1), 0, func, 0);
-            lua_pop(L, 1);
-        }
-    }
-    else
-    {
-        lua_pop(L, 1);
-    }
-}
-
-static void init(void)
-{
-    sg_setup(&(sg_desc){
-        .environment = sglue_environment(),
-        .logger.func = slog_func,
-    });
-    sgl_setup(&(sgl_desc_t){
-        .logger.func = slog_func,
-    });
-    saudio_setup(&(saudio_desc){
-        .sample_rate = 44100,
-        .num_channels = 1,
-        .buffer_frames = 2048,
-        .packet_frames = 512,
-        .num_packets = 4,
-        .logger.func = slog_func,
-    });
-    call_lua("init");
-}
-
-static void frame(void)
-{
-#ifndef __EMSCRIPTEN__
-    /* Hot reload: check if script was modified */
-    time_t mtime = get_file_mtime(g_script_path);
-    if (mtime != g_script_mtime && mtime != 0)
-    {
-        reload_script();
-    }
-#endif
-    call_lua("frame");
-}
-
-static void cleanup(void)
-{
-    call_lua("cleanup");
-#ifdef MANE3D_HAS_SHDC
-    shdc_shutdown();
-#endif
-    saudio_shutdown();
-    sgl_shutdown();
-    sg_shutdown();
-    lua_close(L);
-}
-
-static void event(const sapp_event *ev)
-{
-    lua_getglobal(L, "event");
-    if (!lua_isfunction(L, -1))
-    {
-        static int warn_count = 0;
-        if (warn_count++ < 1)
-        {
-            char msg[64];
-            snprintf(msg, sizeof(msg), "event is not a function, type=%d", lua_type(L, -1));
-            slog_func("event", 2, 0, msg, 0, "", 0);
-        }
-        lua_pop(L, 1);
-        return;
-    }
-    /* Push event as userdata with generated binding */
-    sapp_event *ud = (sapp_event *)lua_newuserdatauv(L, sizeof(sapp_event), 0);
-    *ud = *ev;
-
-#ifdef __EMSCRIPTEN__
-    /* Scale mouse coordinates for CSS transform scaling */
-    double scale_x = js_get_display_scale_x();
-    double scale_y = js_get_display_scale_y();
-    if (scale_x > 0.0 && scale_y > 0.0)
-    {
-        ud->mouse_x /= (float)scale_x;
-        ud->mouse_y /= (float)scale_y;
-    }
-#endif
-    luaL_setmetatable(L, "sokol.Event");
-
-    if (lua_pcall(L, 1, 0, 0) != LUA_OK)
-    {
-        slog_func("event", 0, 0, lua_tostring(L, -1), 0, "pcall", 0);
-        lua_pop(L, 1);
-    }
-}
-
-sapp_desc sokol_main(int argc, char *argv[])
-{
-    slog_func("main", 3, 0, "=== sokol_main fresh build ===", 0, "", 0);
+    slog_func("main", 3, 0, "=== mane3d starting (Lua entry point) ===", 0, "", 0);
     L = luaL_newstate();
     luaL_openlibs(L);
 
@@ -447,13 +319,15 @@ sapp_desc sokol_main(int argc, char *argv[])
     lua_setglobal(L, "get_mtime");
 
 #ifndef __EMSCRIPTEN__
-    /* Add script directory and lib directory to package.path */
+    /* Add script directory and project root to package.path */
     {
         lua_getglobal(L, "package");
         lua_getfield(L, -1, "path");
         const char *old_path = lua_tostring(L, -1);
         char new_path[2048];
-        snprintf(new_path, sizeof(new_path), "%s/?.lua;%s/../lib/?.lua;%s", g_script_dir, g_script_dir, old_path ? old_path : "");
+        /* Add: script_dir/?.lua, script_dir/../?.lua (project root), old_path */
+        snprintf(new_path, sizeof(new_path), "%s/?.lua;%s/../?.lua;%s",
+                 g_script_dir, g_script_dir, old_path ? old_path : "");
         lua_pop(L, 1);
         lua_pushstring(L, new_path);
         lua_setfield(L, -2, "path");
@@ -461,7 +335,7 @@ sapp_desc sokol_main(int argc, char *argv[])
     }
 #endif
 
-
+    /* Execute Lua script - script calls app.run() to start the application */
 #ifdef __EMSCRIPTEN__
     if (js_is_playground_mode())
     {
@@ -494,56 +368,38 @@ sapp_desc sokol_main(int argc, char *argv[])
         slog_func("lua", 0, 0, err ? err : "(no message)", 0, script, 0);
         lua_pop(L, 1);
     }
+    /* Emscripten: sapp_run returns immediately, Lua state stays alive for callbacks */
 #else
-    g_script_mtime = get_file_mtime(script);
     if (luaL_dofile(L, script) != LUA_OK)
     {
         const char *err = lua_tostring(L, -1);
         fprintf(stderr, "Lua error: %s\n", err ? err : "(no message)");
         slog_func("lua", 0, 0, err ? err : "(no message)", 0, script, 0);
-        lua_pop(L, 1);
+        lua_close(L);
+        return 1;
     }
+    /* Non-Emscripten: sapp_run blocks until app closes, then script returns here */
+#ifdef MANE3D_HAS_SHDC
+    shdc_shutdown();
+#endif
+    lua_close(L);
 #endif
 
-#ifdef __EMSCRIPTEN__
-    int w = js_get_canvas_width();
-    int h = js_get_canvas_height();
-#else
-    int w = 1920;
-    int h = 1080;
-#endif
-
-    // Check for config table with window size (like LÖVE2D's conf.lua)
-    lua_getglobal(L, "config");
-    if (lua_istable(L, -1)) {
-        lua_getfield(L, -1, "width");
-        if (lua_isinteger(L, -1)) {
-            w = (int)lua_tointeger(L, -1);
-        }
-        lua_pop(L, 1);
-
-        lua_getfield(L, -1, "height");
-        if (lua_isinteger(L, -1)) {
-            h = (int)lua_tointeger(L, -1);
-        }
-        lua_pop(L, 1);
-    }
-    lua_pop(L, 1);
-
-    return (sapp_desc){
-        .init_cb = init,
-        .frame_cb = frame,
-        .cleanup_cb = cleanup,
-        .event_cb = event,
-        .width = w,
-        .height = h,
-        .window_title = "Måne3D",
-        .logger.func = slog_func,
-        .html5.canvas_resize = true,  /* set canvas to sapp_desc size */
-#ifdef __EMSCRIPTEN__
-        .high_dpi = false,  /* use exact resolution from JS */
-#else
-        .high_dpi = true,
-#endif
-    };
+    return 0;
 }
+
+/* Platform-specific entry points */
+#if defined(_WIN32)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+    (void)hInstance;
+    (void)hPrevInstance;
+    (void)nCmdShow;
+    return mane3d_main(__argc, __argv);
+}
+#else
+int main(int argc, char *argv[])
+{
+    return mane3d_main(argc, argv);
+}
+#endif
