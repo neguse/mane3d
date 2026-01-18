@@ -902,6 +902,10 @@ def gen_metatable_registration(structs, prefix):
     l('}')
     l('')
 
+lua_keywords = {'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for',
+                'function', 'goto', 'if', 'in', 'local', 'nil', 'not', 'or',
+                'repeat', 'return', 'then', 'true', 'until', 'while'}
+
 def gen_luaopen(module_name, prefix, funcs, structs, enums, consts_ids):
     """Generate the luaopen function"""
     l(f'static const luaL_Reg {module_name}_funcs[] = {{')
@@ -911,6 +915,9 @@ def gen_luaopen(module_name, prefix, funcs, structs, enums, consts_ids):
         func_name = func_decl['name']
         lua_name = as_snake_case(func_name, prefix)
         l(f'    {{"{lua_name}", l_{func_name}}},')
+        # Add underscore-suffixed alias for Lua reserved keywords
+        if lua_name in lua_keywords:
+            l(f'    {{"{lua_name}_", l_{func_name}}},')
 
     # Add struct constructors
     for struct_decl in structs:
@@ -1178,11 +1185,6 @@ def gen_luacats_types(inp, prefix, module_name):
         lines.append('}')
         lines.append('')
 
-    # Lua reserved keywords
-    lua_keywords = {'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for',
-                    'function', 'goto', 'if', 'in', 'local', 'nil', 'not', 'or',
-                    'repeat', 'return', 'then', 'true', 'until', 'while'}
-
     # Generate function types
     for func_decl in funcs:
         if is_callback_func(func_decl['name']):
@@ -1207,6 +1209,8 @@ def gen_luacats_types(inp, prefix, module_name):
         param_names = ', '.join(p['name'] for p in params)
         if func_name in lua_keywords:
             lines.append(f'{module_name}["{func_name}"] = function({param_names}) end')
+            # Add underscore-suffixed alias for reserved keywords
+            lines.append(f'function {module_name}.{func_name}_({param_names}) end')
         else:
             lines.append(f'function {module_name}.{func_name}({param_names}) end')
         lines.append('')
