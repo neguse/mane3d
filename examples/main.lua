@@ -40,7 +40,12 @@ void main() {
 @program triangle vs fs
 ]]
 
-function init()
+local function init_game()
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
+
     -- Log license information
     log.log("=== Third-party licenses ===")
     for _, lib in ipairs(licenses.libraries()) do
@@ -76,7 +81,7 @@ function init()
     }))
 end
 
-function frame()
+local function update_frame()
     t = t + 1.0 / 60.0
     if not pipeline or not vbuf then return end
 
@@ -115,11 +120,23 @@ function frame()
     gfx.commit()
 end
 
-function cleanup()
+local function cleanup_game()
+    gfx.shutdown()
 end
 
-function event(ev)
+local function handle_event(ev)
     if ev.type == app.EventType.KEY_DOWN and ev.key_code == app.Keycode.Q then
         app.quit()
     end
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 800,
+    height = 600,
+    window_title = "Mane3D - Triangle",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))

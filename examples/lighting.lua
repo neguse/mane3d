@@ -248,8 +248,13 @@ local function make_sphere_indices(segments, rings)
     return indices
 end
 
-function init()
+local function init_game()
     log.info("Lighting example init")
+
+    -- Initialize sokol.gfx
+    gfx.setup(gfx.Desc({
+        environment = glue.environment(),
+    }))
 
     -- Compile shader
     -- Single uniform block: 2 mat4 + 6 vec4 = 128 + 96 = 224 bytes
@@ -334,7 +339,7 @@ function init()
     log.info("Init complete")
 end
 
-function frame()
+local function update_frame()
     t = t + 1/60
 
     -- Update camera based on input
@@ -451,7 +456,7 @@ function frame()
     gfx.commit()
 end
 
-function event(ev)
+local function handle_event(ev)
     local evtype = ev.type
     if evtype == app.EventType.KEY_DOWN then
         local key = ev.key_code
@@ -490,6 +495,18 @@ function event(ev)
     end
 end
 
-function cleanup()
+local function cleanup_game()
+    gfx.shutdown()
     log.info("Lighting cleanup")
 end
+
+-- Run the application
+app.run(app.Desc({
+    width = 1280,
+    height = 720,
+    window_title = "Mane3D - Lighting",
+    init_cb = init_game,
+    frame_cb = update_frame,
+    cleanup_cb = cleanup_game,
+    event_cb = handle_event,
+}))
