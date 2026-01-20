@@ -1,0 +1,75 @@
+module: "imgui"
+language: "c++"
+headers:
+  - "deps/imgui/imgui.h"
+include_paths:
+  - "deps/imgui"
+defines:
+  - "IMGUI_DISABLE_OBSOLETE_FUNCTIONS"
+  - "IMGUI_DISABLE_OBSOLETE_KEYIO"
+namespace: "ImGui"
+output:
+  c_binding: "gen/bindings/imgui_gen.cpp"
+  lua_wrapper: "lib/imgui.lua"
+  types: "gen/types/imgui.lua"
+rules:
+  allow_out_params: true
+  struct_table_forms:
+    ImVec2: both
+    ImVec4: both
+  callback_support: false
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^[A-Za-z0-9_]+$"  # names inside ImGui namespace
+  skip:
+    - "^GetIO$"
+    - "^GetPlatformIO$"
+    - "^GetStyle$"
+    - "^GetDrawData$"
+    - "^GetCurrentContext$"
+    - "^SetCurrentContext$"
+    - "^CreateContext$"
+    - "^DestroyContext$"
+    - "^SetNextWindowSizeConstraints$"
+    - "^SetAllocatorFunctions$"
+    - "^GetAllocatorFunctions$"
+    - "^GetWindowDrawList$"
+    - "^GetBackgroundDrawList$"
+    - "^GetForegroundDrawList$"
+    - "^GetFont$"
+    - "^GetFontBaked$"
+    - "^BeginMultiSelect$"
+    - "^EndMultiSelect$"
+    - "^SetNextItemSelectionUserData$"
+    - "^GetMainViewport$"
+    - "^Image$"
+    - "^ImageWithBg$"
+    - "^ImageButton$"
+    - "^ListBox$"
+    - "^Combo$"
+    - "^PlotLines$"
+    - "^PlotHistogram$"
+    - "^ShowStyleEditor$"
+    - "^StyleColorsDark$"
+    - "^StyleColorsLight$"
+    - "^StyleColorsClassic$"
+    - "^PushFont$"
+    - "^PopFont$"
+    - "^InputText$"
+    - "^InputTextMultiline$"
+    - "^InputTextWithHint$"
+    - "^ColorPicker4$"
+    - "^ColorConvertRGBtoHSV$"
+    - "^ColorConvertHSVtoRGB$"
+    - "^SetStateStorage$"
+    - "^GetStateStorage$"
+    - "^SaveIniSettingsToMemory$"
+    - "^LoadIniSettingsFromMemory$"
+    - "^IsMousePosValid$"
+    - "^Shortcut$"
+    - "^SetNextItemShortcut$"
+  manual_shim:
+    - "NewFrame"
+    - "Render"
+    - "EndFrame"

@@ -1,0 +1,19 @@
+module: "sokol.app"
+language: "c"
+headers:
+  - "deps/sokol/sokol_app.h"
+include_paths:
+  - "deps/sokol"
+defines:
+  - "SOKOL_NO_ENTRY"
+prefix: "sapp_"
+output:
+  c_binding: "gen/bindings/sokol_app.c"
+  types: "gen/types/sokol/app.lua"
+rules:
+  allow_out_params: true
+  callback_support: true
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^sapp_.*$"

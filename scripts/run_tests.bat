@@ -31,6 +31,7 @@ for %%s in (
     examples\lighting.lua
     examples\triangle.lua
     examples\hakonotaiatari\init.lua
+    examples\b2d\test_all_samples.lua
 ) do (
     if exist "%%s" (
         echo ----------------------------------------

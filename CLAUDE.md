@@ -190,3 +190,21 @@ local texture_base = "assets/" .. model_name .. "/tex/"
 ```
 
 Shared images (LUT, noise, etc.) are in `assets/images/`.
+
+## MSYS/Git Bash環境でのバッチ実行
+
+Claude CodeはMSYS環境で動作するため、Windowsバッチファイルを実行するには以下の形式を使う:
+
+```bash
+# 正しい形式（絶対パス + ダブルバックスラッシュ）
+cmd //c "D:\\github.com\\neguse\\mane3d\\scripts\\test.bat"
+cmd //c "D:\\github.com\\neguse\\mane3d\\scripts\\build_bindings.bat"
+
+# 複数のバッチを連続実行
+cmd //c "D:\\github.com\\neguse\\mane3d\\scripts\\build_bindings.bat && D:\\github.com\\neguse\\mane3d\\scripts\\test.bat"
+```
+
+主要なスクリプト:
+- `scripts/test.bat` - Box2Dバインディング再生成 + ビルド + 全テスト実行
+- `scripts/build_bindings.bat` - Box2Dバインディング再生成のみ
+- `scripts/build.bat [preset]` - 指定プリセットでビルド（デフォルト: win-d3d11-debug）

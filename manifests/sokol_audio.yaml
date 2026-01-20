@@ -1,0 +1,18 @@
+module: "sokol.audio"
+language: "c"
+headers:
+  - "deps/sokol/sokol_audio.h"
+include_paths:
+  - "deps/sokol"
+defines: []
+prefix: "saudio_"
+output:
+  c_binding: "gen/bindings/sokol_audio.c"
+  types: "gen/types/sokol/audio.lua"
+rules:
+  allow_out_params: true
+  callback_support: true
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^saudio_.*$"

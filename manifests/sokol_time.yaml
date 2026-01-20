@@ -1,0 +1,18 @@
+module: "sokol.time"
+language: "c"
+headers:
+  - "deps/sokol/sokol_time.h"
+include_paths:
+  - "deps/sokol"
+defines: []
+prefix: "stm_"
+output:
+  c_binding: "gen/bindings/sokol_time.c"
+  types: "gen/types/sokol/time.lua"
+rules:
+  allow_out_params: true
+  callback_support: false
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^stm_.*$"

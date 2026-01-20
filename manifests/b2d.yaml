@@ -1,0 +1,28 @@
+module: "b2d"
+language: "c"
+headers:
+  - "deps/box2d/include/box2d/box2d.h"
+include_paths:
+  - "deps/box2d/include"
+defines: []
+prefix: "b2"
+output:
+  c_binding: "gen/bindings/b2d.c"
+  types: "gen/types/b2d.lua"
+rules:
+  allow_out_params: true
+  array_patterns:
+    - { ptr: "const b2Vec2*", count: "int" }
+  struct_table_forms:
+    b2Vec2: both
+    b2Rot: both
+    b2Transform: both
+  callback_support: false
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^b2[A-Za-z0-9_]*$"
+  skip:
+    - "^b2World_Draw$"
+  manual_shim:
+    - "b2SetAllocator"

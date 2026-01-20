@@ -1,0 +1,19 @@
+module: "sokol.gl"
+language: "c"
+headers:
+  - "deps/sokol/util/sokol_gl.h"
+include_paths:
+  - "deps/sokol"
+  - "deps/sokol/util"
+defines: []
+prefix: "sgl_"
+output:
+  c_binding: "gen/bindings/sokol_gl.c"
+  types: "gen/types/sokol/gl.lua"
+rules:
+  allow_out_params: true
+  callback_support: false
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^sgl_.*$"

@@ -1,0 +1,22 @@
+module: "sokol.debugtext"
+language: "c"
+headers:
+  - "deps/sokol/util/sokol_debugtext.h"
+include_paths:
+  - "deps/sokol"
+  - "deps/sokol/util"
+defines: []
+prefix: "sdtx_"
+output:
+  c_binding: "gen/bindings/sokol_debugtext.c"
+  types: "gen/types/sokol/debugtext.lua"
+rules:
+  allow_out_params: true
+  callback_support: false
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^sdtx_.*$"
+  skip:
+    - "^sdtx_printf$"
+    - "^sdtx_vprintf$"

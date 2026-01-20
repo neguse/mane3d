@@ -1,0 +1,23 @@
+module: "sokol.gfx"
+language: "c"
+headers:
+  - "deps/sokol/sokol_gfx.h"
+include_paths:
+  - "deps/sokol"
+defines: []
+prefix: "sg_"
+output:
+  c_binding: "gen/bindings/sokol_gfx.c"
+  types: "gen/types/sokol/gfx.lua"
+rules:
+  allow_out_params: true
+  buffer_types:
+    sg_range: "string_or_userdata"
+  callback_support: true
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^sg_.*$"
+  skip:
+    - "^sg_install_trace_hooks$"
+    - "^sg_trace_hooks$"

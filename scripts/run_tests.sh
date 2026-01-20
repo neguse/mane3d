@@ -34,6 +34,7 @@ EXAMPLES=(
     "examples/lighting.lua"
     "examples/triangle.lua"
     "examples/hakonotaiatari/init.lua"
+    "examples/b2d/test_all_samples.lua"
 )
 
 for script in "${EXAMPLES[@]}"; do

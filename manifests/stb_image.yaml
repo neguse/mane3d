@@ -1,0 +1,23 @@
+module: "stb.image"
+language: "c"
+headers:
+  - "deps/stb/stb_image.h"
+include_paths:
+  - "deps/stb"
+defines: []
+prefix: "stbi_"
+output:
+  c_binding: "gen/bindings/stb_image.c"
+  types: "gen/types/stb_image.lua"
+rules:
+  allow_out_params: true
+  strict_validation_default: "strict"
+overrides:
+  allow:
+    - "^stbi_load$"
+    - "^stbi_load_from_memory$"
+    - "^stbi_failure_reason$"
+    - "^stbi_image_free$"
+  manual_shim:
+    - "stbi_load"
+    - "stbi_load_from_memory"

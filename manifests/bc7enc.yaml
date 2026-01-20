@@ -1,0 +1,19 @@
+module: "bc7enc"
+language: "c++"
+headers:
+  - "deps/bc7enc_rdo/rdo_bc_encoder.h"
+  - "deps/bc7enc_rdo/bc7enc.h"
+  - "deps/bc7enc_rdo/bc7decomp.h"
+include_paths:
+  - "deps/bc7enc_rdo"
+defines: []
+output:
+  c_binding: "gen/bindings/bc7enc.cpp"
+  types: "gen/types/bc7enc.lua"
+rules:
+  allow_out_params: true
+  strict_validation_default: "strict"
+overrides:
+  allow: []
+  manual_shim:
+    - "custom_bc7enc_wrapper"  # see src/bc7enc_lua.cpp

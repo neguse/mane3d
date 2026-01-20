@@ -404,6 +404,43 @@ if(MANE3D_BUILD_IMGUI)
     endif()
 endif()
 
+# Box2D physics library (optional)
+option(MANE3D_BUILD_BOX2D "Build Box2D physics library" ON)
+if(MANE3D_BUILD_BOX2D)
+    # Box2D auto-generated bindings (requires clang)
+    option(MANE3D_GEN_BOX2D "Generate Box2D bindings (requires clang)" ON)
+    if(MANE3D_GEN_BOX2D AND Python3_FOUND AND CLANGPP_EXECUTABLE)
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/b2d.c
+            COMMAND ${CMAKE_COMMAND} -E env PYTHONUTF8=1 CLANG=${CLANGPP_EXECUTABLE}
+                ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_box2d.py
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_box2d.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_ir_box2d.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/deps/box2d/include/box2d/box2d.h
+            COMMENT "Generating Box2D Lua bindings..."
+        )
+    elseif(MANE3D_GEN_BOX2D)
+        message(WARNING "clang not found, skipping Box2D binding generation")
+    endif()
+
+    # Box2D library
+    set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
+    set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+    set(BOX2D_DOCS OFF CACHE BOOL "" FORCE)
+    set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+    add_subdirectory(deps/box2d)
+
+    # Add Box2D bindings to mane3d
+    target_sources(mane3d PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/gen/bindings/b2d.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/box2d_task.c
+    )
+    target_include_directories(mane3d PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/deps/box2d/include)
+    target_link_libraries(mane3d PUBLIC box2d)
+    target_compile_definitions(mane3d PUBLIC MANE3D_HAS_BOX2D)
+endif()
+
 # BC7 encoder library (optional)
 option(MANE3D_BUILD_BC7ENC "Build BC7 encoder library" ON)
 if(MANE3D_BUILD_BC7ENC)
@@ -501,5 +538,11 @@ if(MANE3D_BUILD_TESTS)
 
     if(MANE3D_BUILD_SHDC)
         target_compile_definitions(mane3d-test PRIVATE MANE3D_HAS_SHDC)
+    endif()
+
+    if(MANE3D_BUILD_BOX2D)
+        target_include_directories(mane3d-test PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/deps/box2d/include
+        )
     endif()
 endif()
