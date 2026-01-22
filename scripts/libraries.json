@@ -614,5 +614,12 @@
       "-I",
       "deps/cute_framework/libraries"
     ]
+  },
+  {
+    "module": "miniaudio",
+    "headers": [
+      "deps/miniaudio/miniaudio.h"
+    ],
+    "prefix": "ma_"
   }
 ]
