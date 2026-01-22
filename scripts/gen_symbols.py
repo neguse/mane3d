@@ -40,7 +40,7 @@ def build_type_index(all_irs: list) -> dict:
         for decl in ir["decls"]:
             if decl.get("is_dep"):
                 continue
-            if decl["kind"] in ("struct", "enum"):
+            if decl["kind"] in ("struct", "class", "enum"):
                 c_name = decl["name"]
                 index[c_name] = module
     return index
@@ -71,7 +71,7 @@ def generate_module_html(ir: dict, type_index: dict) -> str:
         kind = decl["kind"]
         if kind == "enum":
             enums.append(decl)
-        elif kind == "struct":
+        elif kind in ("struct", "class"):
             structs.append(decl)
         elif kind == "func":
             funcs.append(decl)
@@ -112,9 +112,17 @@ def generate_module_html(ir: dict, type_index: dict) -> str:
                 lines.append(f'<tr><td><code>{escape(item["name"])}</code></td><td>{i}</td></tr>')
             lines.append('</table>')
 
-    # Structs
+    # Structs/Classes
     if structs:
         lines.append(f'<h3 id="{module}-structs">Structs</h3>')
+        # Type index
+        lines.append('<details><summary>Type list</summary><ul class="type-list">')
+        for decl in structs:
+            c_name = decl["name"]
+            anchor = make_anchor(c_name)
+            kind_label = "class" if decl["kind"] == "class" else "struct"
+            lines.append(f'<li><a href="#{anchor}">{escape(c_name)}</a> <small>({kind_label})</small></li>')
+        lines.append('</ul></details>')
         for decl in structs:
             c_name = decl["name"]
             anchor = make_anchor(c_name)
@@ -125,8 +133,19 @@ def generate_module_html(ir: dict, type_index: dict) -> str:
                     linked = linkify_type(field["type"], type_index)
                     lines.append(f'<tr><td><code>{escape(field["name"])}</code></td><td>{linked}</td></tr>')
                 lines.append('</table>')
-            else:
+            elif not decl.get("methods"):
                 lines.append('<p><em>(opaque type)</em></p>')
+            if decl.get("methods"):
+                lines.append('<table><tr><th>Method</th><th>Signature</th></tr>')
+                for method in decl["methods"]:
+                    m_name = method["name"]
+                    # Parse return type from method type (e.g. "Vec4 ()" -> "Vec4")
+                    m_type = method.get("type", "")
+                    ret = m_type.split("(")[0].strip() if "(" in m_type else m_type
+                    ret_str = linkify_type(ret, type_index) if ret else ""
+                    static_mark = '<em>static</em> ' if method.get("static") else ''
+                    lines.append(f'<tr><td>{static_mark}<code>{escape(m_name)}</code></td><td>→ {ret_str}</td></tr>')
+                lines.append('</table>')
 
     # Functions
     if funcs:

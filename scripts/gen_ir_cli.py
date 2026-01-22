@@ -24,6 +24,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent
 VERBOSE = False
+INCLUDE_PRIVATE = False  # Include private/protected members
 
 
 # --- IR Generation (based on sokol/bindgen/gen_ir.py) ---
@@ -79,28 +80,51 @@ def get_dep_prefix(decl, dep_prefixes):
 
 def parse_struct(decl, source, cpp_mode=False):
     """Parse a struct/class declaration."""
+    is_class = cpp_mode and decl.get('tagUsed') == 'class'
     outp = {
-        'kind': 'class' if cpp_mode and decl.get('tagUsed') == 'class' else 'struct',
+        'kind': 'class' if is_class else 'struct',
         'name': decl['name'],
         'fields': [],
         'methods': [],
     }
+    # Track current access specifier (class default=private, struct default=public)
+    current_access = 'private' if is_class else 'public'
+
     for item_decl in decl.get('inner', []):
         kind = item_decl['kind']
+        if kind == 'AccessSpecDecl':
+            current_access = item_decl.get('access', 'public')
+            continue
+        # Skip non-public members unless INCLUDE_PRIVATE is set
+        if not INCLUDE_PRIVATE and current_access != 'public':
+            continue
         if kind == 'FullComment':
             outp['comment'] = extract_comment(item_decl, source)
         elif kind == 'FieldDecl':
-            item = {}
-            if 'name' in item_decl:
-                item['name'] = item_decl['name']
-            item['type'] = filter_types(item_decl['type']['qualType'])
+            # Skip anonymous union/struct fields (handled by CXXRecordDecl/RecordDecl)
+            if 'name' not in item_decl:
+                continue
+            item = {
+                'name': item_decl['name'],
+                'type': filter_types(item_decl['type']['qualType'])
+            }
             outp['fields'].append(item)
         elif kind == 'CXXMethodDecl':
             method = parse_cxx_method(item_decl, source)
             if method:
                 outp['methods'].append(method)
-        elif kind in ('AccessSpecDecl', 'CXXConstructorDecl', 'CXXDestructorDecl',
-                      'CXXRecordDecl', 'TypedefDecl', 'UsingDecl', 'FriendDecl',
+        elif kind in ('CXXRecordDecl', 'RecordDecl'):
+            # Handle anonymous union/struct - expand their fields into parent
+            if 'name' not in item_decl and item_decl.get('tagUsed') in ('union', 'struct'):
+                for inner in item_decl.get('inner', []):
+                    if inner['kind'] == 'FieldDecl' and 'name' in inner:
+                        item = {
+                            'name': inner['name'],
+                            'type': filter_types(inner['type']['qualType'])
+                        }
+                        outp['fields'].append(item)
+        elif kind in ('CXXConstructorDecl', 'CXXDestructorDecl',
+                      'TypedefDecl', 'UsingDecl', 'FriendDecl',
                       'StaticAssertDecl', 'VarDecl', 'EnumDecl', 'TypeAliasDecl'):
             # Skip these C++ constructs silently
             pass
@@ -384,7 +408,7 @@ def collect_decls(node, prefix, dep_prefixes, source, cpp_mode, namespace_prefix
             if outp_decl is not None:
                 # Add namespace prefix to name
                 if namespace_prefix and 'name' in outp_decl:
-                    outp_decl['namespace'] = namespace_prefix.rstrip('::')
+                    outp_decl['name'] = namespace_prefix + outp_decl['name']
                 outp_decl['is_dep'] = is_dep
                 outp_decl['dep_prefix'] = get_dep_prefix(decl, dep_prefixes or [])
                 results.append(outp_decl)
@@ -448,11 +472,14 @@ def main():
                         help="Verbose output")
     parser.add_argument("--std", default=None,
                         help="C++ standard (e.g., c++17, c++20). Default: c++17 for --cpp")
+    parser.add_argument("--include-private", action="store_true",
+                        help="Include private/protected members (default: public only)")
 
     args = parser.parse_args()
 
-    global VERBOSE
+    global VERBOSE, INCLUDE_PRIVATE
     VERBOSE = args.verbose
+    INCLUDE_PRIVATE = args.include_private
 
     # Setup MSVC environment on Windows
     if not setup_msvc_env():
