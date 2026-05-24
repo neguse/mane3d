@@ -1,3 +1,5 @@
+renamed to: https://github.com/neguse/lub
+
 # Lübertà3d / lub3d
 
 ![Lübertà3d](public/lub3d.jpg)
